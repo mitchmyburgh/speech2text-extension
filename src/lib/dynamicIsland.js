@@ -423,7 +423,7 @@ export class DynamicIsland {
 
     this.innerBox.remove_all_children();
     this.innerBox.vertical = true;
-    this.innerBox.style = "spacing: 14px; padding: 18px 24px;";
+    this.innerBox.style = "spacing: 10px; padding: 14px 20px;";
     this.innerBox.x_expand = true;
 
     this.container.set_style(`
@@ -433,127 +433,33 @@ export class DynamicIsland {
       max-width: 560px;
     `);
 
-    // Header row — matches expanded DI style
-    const header = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 10px;",
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    const iconLbl = new St.Label({
-      text: "📝",
-      style: "font-size: 18px;",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    const titleLbl = new St.Label({
-      text: "Transcription",
-      style: "font-size: 15px; font-weight: bold; color: white;",
-      y_align: Clutter.ActorAlign.CENTER,
-      x_expand: true,
-    });
-
-    const closeBtn = new St.Button({
-      label: "✕",
-      style: `
-        color: #666;
-        background: transparent;
-        border: none;
-        font-size: 13px;
-        padding: 2px 4px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
-    closeBtn.connect("clicked", () => {
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-
-    header.add_child(iconLbl);
-    header.add_child(titleLbl);
-    header.add_child(closeBtn);
-
-    // Editable text entry
-    const textEntry = new St.Entry({
+    // Plain text display — no editable entry
+    const textLbl = new St.Label({
       text,
       style: `
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
         color: #e8e8e8;
         font-size: 14px;
-        padding: 10px 12px;
-        caret-color: ${COLORS.PRIMARY};
       `,
-      can_focus: true,
-      reactive: true,
       x_expand: true,
     });
+    textLbl.get_clutter_text().set_line_wrap(true);
+    textLbl.get_clutter_text().set_line_wrap_mode(2);
 
-    const ct = textEntry.get_clutter_text();
-    ct.set_line_wrap(true);
-    ct.set_line_wrap_mode(2);
-    ct.set_single_line_mode(false);
-    ct.set_activatable(false);
-
-    // Button row — same style as expanded DI
-    const buttonRow = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 8px;",
+    // Keyboard hint row
+    const hintLbl = new St.Label({
+      text: "↵ insert  ·  Esc cancel",
+      style: "font-size: 11px; color: #555;",
       x_align: Clutter.ActorAlign.CENTER,
     });
 
-    const insertBtn = this._makeButton("↵  Insert", COLORS.SUCCESS);
-    insertBtn.connect("clicked", () => {
-      const finalText = textEntry.get_text();
-      this.close();
-      if (this.onInsert) this.onInsert(finalText);
-    });
-
-    const cancelBtn = this._makeButton("✕  Cancel", "#444");
-    cancelBtn.connect("clicked", () => {
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-
-    buttonRow.add_child(insertBtn);
-    buttonRow.add_child(cancelBtn);
-
-    this.innerBox.add_child(header);
-    this.innerBox.add_child(textEntry);
-    this.innerBox.add_child(buttonRow);
+    this.innerBox.add_child(textLbl);
+    this.innerBox.add_child(hintLbl);
 
     this._positionAtTop();
-
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
-      ct.set_selection(0, text.length);
-      return false;
-    });
-
-    this._setupPreviewKeyboardHandling(textEntry);
+    this._setupPreviewKeyboardHandling(text);
   }
 
-  _setupPreviewKeyboardHandling(textEntry) {
-    // The St.Entry's ClutterText holds focus while editing — attach handler there
-    const ct = textEntry.get_clutter_text();
-    ct.connect("key-press-event", (actor, event) => {
-      const keyval = event.get_key_symbol();
-      if (keyval === Clutter.KEY_Escape) {
-        this.close();
-        if (this.onCancel) this.onCancel();
-        return Clutter.EVENT_STOP;
-      }
-      if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
-        const finalText = textEntry.get_text();
-        this.close();
-        if (this.onInsert) this.onInsert(finalText);
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
-    // Also handle on container in case entry doesn't have focus yet
+  _setupPreviewKeyboardHandling(text) {
     this.container.connect("key-press-event", (actor, event) => {
       const keyval = event.get_key_symbol();
       if (keyval === Clutter.KEY_Escape) {
@@ -562,16 +468,13 @@ export class DynamicIsland {
         return Clutter.EVENT_STOP;
       }
       if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
-        const finalText = textEntry.get_text();
         this.close();
-        if (this.onInsert) this.onInsert(finalText);
+        if (this.onInsert) this.onInsert(text);
         return Clutter.EVENT_STOP;
       }
       return Clutter.EVENT_PROPAGATE;
     });
-    // Focus the text entry so the ct key-press handler fires and the user
-    // can edit the transcription immediately.
-    textEntry.grab_key_focus();
+    this.container.grab_key_focus();
   }
 
   showError(message) {
