@@ -8,8 +8,8 @@ import { COLORS } from "./constants.js";
 import { log, cleanupChromeWidget } from "./resourceUtils.js";
 
 const BASE_STYLE = `
-  background-color: rgba(18, 18, 22, 0.97);
-  border: 1.5px solid rgba(255, 140, 0, 0.45);
+  background-color: rgba(22, 22, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
 `;
 
@@ -435,7 +435,7 @@ export class DynamicIsland {
       style: `
         width: 32px; height: 32px; border-radius: 9px;
         background-color: rgba(255, 140, 0, 0.15);
-        border: 1px solid rgba(255, 140, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       `,
     });
     const iconLbl = new St.Label({
@@ -567,7 +567,7 @@ export class DynamicIsland {
     this.innerBox.style = "spacing: 12px; padding: 18px 22px;";
     this.container.set_style(`
       ${BASE_STYLE}
-      border: 1.5px solid rgba(255, 68, 68, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 16px;
       min-width: 300px;
     `);

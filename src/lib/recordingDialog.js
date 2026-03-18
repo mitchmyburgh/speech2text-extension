@@ -14,9 +14,9 @@ import {
 } from "./resourceUtils.js";
 
 const DIALOG_STYLE = `
-  background-color: rgba(18, 18, 22, 0.98);
+  background-color: rgba(22, 22, 26, 0.98);
   border-radius: 16px;
-  border: 1.5px solid rgba(255, 140, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
 export class RecordingDialog {
@@ -132,7 +132,7 @@ export class RecordingDialog {
       style: `
         width: 40px; height: 40px; border-radius: 12px;
         background-color: rgba(255, 140, 0, 0.15);
-        border: 1.5px solid rgba(255, 140, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       `,
     });
     this.recordingIcon = new St.Label({

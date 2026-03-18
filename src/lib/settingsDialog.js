@@ -157,7 +157,7 @@ export class SettingsDialog {
         padding: 28px 30px 24px;
         min-width: 520px;
         max-width: 580px;
-        border: 1.5px solid rgba(255, 140, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         spacing: 0;
       `,
       x_align: Clutter.ActorAlign.CENTER,
@@ -218,7 +218,7 @@ export class SettingsDialog {
         height: 36px;
         border-radius: 10px;
         background-color: rgba(255, 140, 0, 0.15);
-        border: 1.5px solid rgba(255, 140, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       `,
     });
     const iconLabel = new St.Label({
@@ -264,7 +264,7 @@ export class SettingsDialog {
         background-color: rgba(255, 140, 0, 0.08);
         padding: 9px 14px;
         border-radius: 8px;
-        border: 1px solid rgba(255, 140, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         margin-bottom: 12px;
       `,
       x_expand: true,
@@ -325,7 +325,7 @@ export class SettingsDialog {
         font-weight: bold;
         color: ${COLORS.PRIMARY};
         background-color: rgba(255, 140, 0, 0.1);
-        border: 1px solid rgba(255, 140, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 7px;
         padding: 6px 14px;
         min-width: 52px;

@@ -23,7 +23,7 @@ export const STYLES = {
     border: none;
     transition: all 0.2s ease;
   `,
-  DIALOG_BORDER: `2px solid ${COLORS.PRIMARY}`,
+  DIALOG_BORDER: `1px solid rgba(255, 255, 255, 0.1)`,
   DIALOG_PADDING: "30px",
   DIALOG_BORDER_RADIUS: "12px",
 
