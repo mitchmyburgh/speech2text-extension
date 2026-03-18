@@ -117,8 +117,6 @@ export class SettingsDialog {
     this.nonBlockingTranscriptionCheckboxIcon = null;
     this.dynamicIslandCheckbox = null;
     this.dynamicIslandCheckboxIcon = null;
-    this.autoInsertWaylandCheckbox = null;
-    this.autoInsertWaylandCheckboxIcon = null;
     this.showTranscriptionInlineCheckbox = null;
     this.showTranscriptionInlineCheckboxIcon = null;
   }
@@ -432,16 +430,6 @@ export class SettingsDialog {
     } else {
       this.skipPreviewCheckbox = null;
       this.skipPreviewCheckboxIcon = null;
-
-      const enabled = this.settings.get_boolean("auto-insert-wayland");
-      const { button, label: knob } = this._makeToggle(enabled);
-      this.autoInsertWaylandCheckbox = button;
-      this.autoInsertWaylandCheckboxIcon = knob;
-      const sublabel = new St.Label({
-        text: "Requires wtype",
-        style: `font-size: 11px; color: #444; margin-top: 1px;`,
-      });
-      rows.push(this._optionRow("Auto-insert on Wayland", button, sublabel));
     }
 
     rows.forEach((row, i) => {
@@ -560,7 +548,6 @@ export class SettingsDialog {
 
     this._wireToggle("use-dynamic-island", "dynamicIslandCheckbox", "dynamicIslandCheckboxIcon");
     this._wireToggle("show-transcription-inline", "showTranscriptionInlineCheckbox", "showTranscriptionInlineCheckboxIcon");
-    this._wireToggle("auto-insert-wayland", "autoInsertWaylandCheckbox", "autoInsertWaylandCheckboxIcon");
 
     const handlers = setupModalEventHandlers(this.overlay, () => this.close());
     this.keyPressHandler = handlers.keyPressHandler;

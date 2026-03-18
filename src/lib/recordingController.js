@@ -73,8 +73,6 @@ export class RecordingController {
   }
 
   _createDynamicIsland(settings) {
-    const isWayland = Meta.is_wayland_compositor();
-    const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
     const showTranscription = settings.get_boolean("show-transcription-inline");
 
     const dynamicIsland = new DynamicIsland(
@@ -100,7 +98,6 @@ export class RecordingController {
       {
         maxDuration: settings.get_int("recording-duration"),
         showTranscription: showTranscription,
-        autoInsertOnWayland: isWayland && autoInsertWayland,
       }
     );
 
