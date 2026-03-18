@@ -18,7 +18,7 @@ using OpenAI's automated speech recognition [Whisper](https://github.com/openai/
 
 - 🎤 **Speech Recognition** using OpenAI Whisper
 - 🖱️ **Click to Record** from top panel microphone icon
-- ⌨️ **Keyboard Shortcut** support (default: Alt+Super+R)
+- ⌨️ **Keyboard Shortcut** support (default: Ctrl+Space)
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - 🔒 **Privacy-First** - All processing happens locally
 - ⌨️ **Automatic Text Insertion** at cursor location (X11 and Wayland with wtype)
@@ -143,7 +143,7 @@ remove any old GPU-related pip packages from the service venv automatically.
 ### Quick Start
 
 1. **Click** the microphone icon in the top panel, or
-2. **Press** the keyboard shortcut (default: Alt+Super+R)
+2. **Press** the keyboard shortcut (default: Ctrl+Space)
 3. **Speak** when the recording dialog appears
 4. **Review** the transcribed text in the preview dialog
 5. **Click Insert** to type the text, or **Copy** to clipboard
