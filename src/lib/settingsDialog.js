@@ -37,6 +37,12 @@ export class SettingsDialog {
     this.skipPreviewCheckboxIcon = null;
     this.nonBlockingTranscriptionCheckbox = null;
     this.nonBlockingTranscriptionCheckboxIcon = null;
+    this.dynamicIslandCheckbox = null;
+    this.dynamicIslandCheckboxIcon = null;
+    this.autoInsertWaylandCheckbox = null;
+    this.autoInsertWaylandCheckboxIcon = null;
+    this.showTranscriptionInlineCheckbox = null;
+    this.showTranscriptionInlineCheckboxIcon = null;
     this.centerTimeoutId = null;
     this.keyPressHandler = null;
     this.clickHandler = null;
@@ -328,6 +334,121 @@ export class SettingsDialog {
       this.skipPreviewCheckboxIcon = null;
     }
 
+    // 4) Dynamic Island UI
+    {
+      const row = createHorizontalBox("12px", "0px");
+      const label = createStyledLabel(
+        "Use Dynamic Island style UI",
+        "normal"
+      );
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
+
+      const enabled = this.settings.get_boolean("use-dynamic-island");
+      this.dynamicIslandCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+
+      this.dynamicIslandCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.dynamicIslandCheckbox.add_child(this.dynamicIslandCheckboxIcon);
+
+      row.add_child(label);
+      row.add_child(this.dynamicIslandCheckbox);
+      section.add_child(row);
+    }
+
+    // 5) Show transcription inline (in Dynamic Island)
+    {
+      const row = createHorizontalBox("12px", "0px");
+      const label = createStyledLabel(
+        "Show transcription inline (Dynamic Island)",
+        "normal"
+      );
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
+
+      const enabled = this.settings.get_boolean("show-transcription-inline");
+      this.showTranscriptionInlineCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+
+      this.showTranscriptionInlineCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.showTranscriptionInlineCheckbox.add_child(this.showTranscriptionInlineCheckboxIcon);
+
+      row.add_child(label);
+      row.add_child(this.showTranscriptionInlineCheckbox);
+      section.add_child(row);
+    }
+
+    // 6) Auto-insert on Wayland (requires wtype)
+    if (Meta.is_wayland_compositor()) {
+      const row = createHorizontalBox("12px", "0px");
+      const labelBox = createVerticalBox("0px", "0px");
+      const label = createStyledLabel(
+        "Auto-insert on Wayland (requires wtype)",
+        "normal"
+      );
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
+      
+      const sublabel = createStyledLabel(
+        "Install wtype package for best results",
+        "small",
+        "color: #888; font-size: 11px;"
+      );
+      
+      labelBox.add_child(label);
+      labelBox.add_child(sublabel);
+
+      const enabled = this.settings.get_boolean("auto-insert-wayland");
+      this.autoInsertWaylandCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+
+      this.autoInsertWaylandCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.autoInsertWaylandCheckbox.add_child(this.autoInsertWaylandCheckboxIcon);
+
+      row.add_child(labelBox);
+      row.add_child(this.autoInsertWaylandCheckbox);
+      section.add_child(row);
+    }
+
     return section;
   }
 
@@ -485,6 +606,63 @@ export class SettingsDialog {
         }
 
         _setSkipPreviewToggleUi(newState);
+      });
+    }
+
+    // Dynamic Island checkbox
+    if (this.dynamicIslandCheckbox) {
+      this.dynamicIslandCheckbox.connect("clicked", () => {
+        const currentState = this.settings.get_boolean("use-dynamic-island");
+        const newState = !currentState;
+        this.settings.set_boolean("use-dynamic-island", newState);
+
+        this.dynamicIslandCheckbox.set_style(`
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `);
+        this.dynamicIslandCheckboxIcon.set_text(newState ? "✓" : "");
+      });
+    }
+
+    // Show transcription inline checkbox
+    if (this.showTranscriptionInlineCheckbox) {
+      this.showTranscriptionInlineCheckbox.connect("clicked", () => {
+        const currentState = this.settings.get_boolean("show-transcription-inline");
+        const newState = !currentState;
+        this.settings.set_boolean("show-transcription-inline", newState);
+
+        this.showTranscriptionInlineCheckbox.set_style(`
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `);
+        this.showTranscriptionInlineCheckboxIcon.set_text(newState ? "✓" : "");
+      });
+    }
+
+    // Auto-insert on Wayland checkbox
+    if (this.autoInsertWaylandCheckbox) {
+      this.autoInsertWaylandCheckbox.connect("clicked", () => {
+        const currentState = this.settings.get_boolean("auto-insert-wayland");
+        const newState = !currentState;
+        this.settings.set_boolean("auto-insert-wayland", newState);
+
+        this.autoInsertWaylandCheckbox.set_style(`
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `);
+        this.autoInsertWaylandCheckboxIcon.set_text(newState ? "✓" : "");
       });
     }
 

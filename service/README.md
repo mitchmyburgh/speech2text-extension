@@ -17,6 +17,31 @@ This service handles the actual speech recognition processing using OpenAI's Whi
 
 ## Installation
 
+### Option 1: Docker (Recommended for GPU Support)
+
+The easiest way to run the service with GPU acceleration is using Docker. See [DOCKER.md](DOCKER.md) for detailed instructions.
+
+**Quick Start:**
+
+```bash
+# Start with GPU support (auto-detects, falls back to CPU)
+./docker-run.sh start
+
+# Check status
+./docker-run.sh status
+
+# View logs
+./docker-run.sh logs
+```
+
+**Benefits of Docker:**
+- Easy GPU acceleration setup
+- Isolated dependencies
+- Clean uninstall
+- Consistent environment
+
+### Option 2: Native Installation
+
 ### System Dependencies
 
 This service requires several system packages to be installed (e.g. ffmpeg, clipboard tools). See the main [README.md](../README.md) for the complete list of system dependencies.

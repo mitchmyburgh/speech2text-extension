@@ -1,6 +1,8 @@
 import St from "gi://St";
+import Meta from "gi://Meta";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
+import { DynamicIsland } from "./dynamicIsland.js";
 import { log } from "./resourceUtils.js";
 
 export class RecordingController {
@@ -16,6 +18,11 @@ export class RecordingController {
       this.uiManager.icon,
       this.serviceManager.dbusManager
     );
+  }
+
+  _shouldUseDynamicIsland(settings) {
+    // Use Dynamic Island by default, unless explicitly disabled
+    return settings.get_boolean("use-dynamic-island") !== false;
   }
 
   async toggleRecording(settings) {
@@ -48,41 +55,88 @@ export class RecordingController {
       const success = await this.recordingStateManager.startRecording(settings);
 
       if (success) {
-        // Create and show recording dialog
-        const recordingDialog = new RecordingDialog(
-          () => {
-            // Cancel callback
-            this.recordingStateManager.cancelRecording();
-            this.recordingStateManager.setRecordingDialog(null);
-          },
-          (text) => {
-            // Insert callback
-            log.debug(`Inserting text: ${text}`);
-            this._typeText(text);
-            this.recordingStateManager.setRecordingDialog(null);
-          },
-          async () => {
-            // Stop callback
-            log.debug("Stop recording button clicked");
-            const stopped = await this.recordingStateManager.stopRecording();
-            if (stopped) {
-              this._beginTranscriptionUi();
-            }
-          },
-          settings.get_int("recording-duration")
-        );
-
-        this.recordingStateManager.setRecordingDialog(recordingDialog);
-        log.debug(
-          "RecordingController: Created and set recording dialog, opening now"
-        );
-        recordingDialog.open();
+        // Determine which UI to use based on settings
+        const useDynamicIsland = this._shouldUseDynamicIsland(settings);
+        
+        if (useDynamicIsland) {
+          this._createDynamicIsland(settings);
+        } else {
+          this._createRecordingDialog(settings);
+        }
       } else {
         this.uiManager.showServiceSetupDialog(
           "Failed to start recording. Please verify the Speech2Text service is installed and up to date."
         );
       }
     }
+  }
+
+  _createDynamicIsland(settings) {
+    const isWayland = Meta.is_wayland_compositor();
+    const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
+    const showTranscription = settings.get_boolean("show-transcription-inline");
+
+    const dynamicIsland = new DynamicIsland(
+      () => {
+        // Cancel callback
+        this.recordingStateManager.cancelRecording();
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      (text) => {
+        // Insert callback
+        log.debug(`Inserting text from Dynamic Island: ${text}`);
+        this._typeText(text);
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      async () => {
+        // Stop callback
+        log.debug("Stop recording button clicked in Dynamic Island");
+        const stopped = await this.recordingStateManager.stopRecording();
+        if (stopped) {
+          this._beginTranscriptionUi();
+        }
+      },
+      {
+        maxDuration: settings.get_int("recording-duration"),
+        showTranscription: showTranscription,
+        autoInsertOnWayland: isWayland && autoInsertWayland,
+      }
+    );
+
+    this.recordingStateManager.setRecordingDialog(dynamicIsland);
+    log.debug("RecordingController: Created Dynamic Island, opening now");
+    dynamicIsland.open();
+  }
+
+  _createRecordingDialog(settings) {
+    const recordingDialog = new RecordingDialog(
+      () => {
+        // Cancel callback
+        this.recordingStateManager.cancelRecording();
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      (text) => {
+        // Insert callback
+        log.debug(`Inserting text: ${text}`);
+        this._typeText(text);
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      async () => {
+        // Stop callback
+        log.debug("Stop recording button clicked");
+        const stopped = await this.recordingStateManager.stopRecording();
+        if (stopped) {
+          this._beginTranscriptionUi();
+        }
+      },
+      settings.get_int("recording-duration")
+    );
+
+    this.recordingStateManager.setRecordingDialog(recordingDialog);
+    log.debug(
+      "RecordingController: Created and set recording dialog, opening now"
+    );
+    recordingDialog.open();
   }
 
   handleRecordingStopped(recordingId, reason) {
@@ -159,8 +213,8 @@ export class RecordingController {
     if (result && result.action === "insert") {
       this._typeText(result.text);
     } else if (result && result.action === "createPreview") {
-      log.debug("Creating new preview dialog for transcribed text");
-      this._showPreviewDialog(result.text);
+      log.debug("Creating preview for transcribed text");
+      this._showPreview(result.text);
     } else if (result && result.action === "ignored") {
       log.debug("Transcription ignored - recording was cancelled");
       // Nothing to do - recording was cancelled
@@ -175,6 +229,12 @@ export class RecordingController {
 
     this._endTranscriptionUi();
 
+    // Show error in the current UI if possible
+    const dialog = this.recordingStateManager?.recordingDialog;
+    if (dialog && typeof dialog.showError === "function") {
+      dialog.showError(errorMessage);
+    }
+
     if (
       this.uiManager.extensionCore.settings.get_boolean(
         "non-blocking-transcription"
@@ -184,6 +244,48 @@ export class RecordingController {
     }
 
     this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
+  }
+
+  _showPreview(text) {
+    log.debug("Showing preview for text:", text);
+
+    const settings = this.uiManager.extensionCore.settings;
+    const useDynamicIsland = this._shouldUseDynamicIsland(settings);
+
+    if (useDynamicIsland) {
+      // Use Dynamic Island for preview
+      const dialog = this.recordingStateManager?.recordingDialog;
+      if (dialog && dialog instanceof DynamicIsland) {
+        dialog.showPreview(text);
+      } else {
+        // Create new Dynamic Island for preview
+        const isWayland = Meta.is_wayland_compositor();
+        const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
+
+        const dynamicIsland = new DynamicIsland(
+          () => {
+            dynamicIsland.close();
+          },
+          (finalText) => {
+            log.debug(`Inserting text from preview: ${finalText}`);
+            this._typeText(finalText);
+            dynamicIsland.close();
+          },
+          null,
+          {
+            maxDuration: 0,
+            showTranscription: true,
+            autoInsertOnWayland: isWayland && autoInsertWayland,
+          }
+        );
+
+        dynamicIsland.open();
+        dynamicIsland.showPreview(text);
+      }
+    } else {
+      // Use traditional dialog for preview
+      this._showPreviewDialog(text);
+    }
   }
 
   _showPreviewDialog(text) {
@@ -259,7 +361,7 @@ export class RecordingController {
       return;
     }
 
-    // Default behavior: use the existing modal dialog's processing UI.
+    // Default behavior: use the dialog's processing UI.
     const dialog = this.recordingStateManager?.recordingDialog;
     if (dialog && typeof dialog.showProcessing === "function") {
       dialog.showProcessing();

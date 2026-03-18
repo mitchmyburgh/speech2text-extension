@@ -25,7 +25,22 @@
         <key name="non-blocking-transcription" type="b">
             <default>false</default>
             <summary>Non-blocking transcription</summary>
-            <description>If enabled, the extension will show a small non-blocking “Transcribing…” window while processing your audio, so you can keep using your computer. A notification will be shown when transcription finishes.</description>
+            <description>If enabled, the extension will show a small non-blocking "Transcribing..." window while processing your audio, so you can keep using your computer. A notification will be shown when transcription finishes.</description>
+        </key>
+        <key name="use-dynamic-island" type="b">
+            <default>true</default>
+            <summary>Use Dynamic Island style UI</summary>
+            <description>If enabled, shows a compact pill-shaped overlay at the top of the screen during recording instead of a centered modal dialog.</description>
+        </key>
+        <key name="auto-insert-wayland" type="b">
+            <default>false</default>
+            <summary>Auto-insert text on Wayland</summary>
+            <description>If enabled on Wayland, the extension will attempt to automatically insert transcribed text using wtype. This requires the wtype package to be installed and may not work in all applications. When disabled, text will only be copied to clipboard on Wayland.</description>
+        </key>
+        <key name="show-transcription-inline" type="b">
+            <default>true</default>
+            <summary>Show transcription inline</summary>
+            <description>If enabled, the transcribed text will be shown directly in the Dynamic Island overlay for review before inserting.</description>
         </key>
     </schema>
 </schemalist>

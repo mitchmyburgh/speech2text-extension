@@ -21,8 +21,9 @@ using OpenAI's automated speech recognition [Whisper](https://github.com/openai/
 - ⌨️ **Keyboard Shortcut** support (default: Alt+Super+R)
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - 🔒 **Privacy-First** - All processing happens locally
-- ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
+- ⌨️ **Automatic Text Insertion** at cursor location (X11 and Wayland with wtype)
 - 🔄 **Non-blocking Mode** - Continue working while transcription processes in the background
+- 🏝️ **Dynamic Island UI** - Compact pill-shaped overlay for recording status and transcription preview
 
 ## Architecture
 
@@ -47,7 +48,8 @@ See [Service Installation](#Service-Installation) below.
 - **python3-venv** (for virtual environment creation)
 - **D-Bus Python library** is installed inside the service virtualenv (`dbus-next`; no system `python3-dbus` / `python3-gi` required)
 - **FFmpeg** (for audio recording)
-- **xdotool** (for text insertion on X11 only)
+- **xdotool** (for text insertion on X11)
+- **wtype** (for text insertion on Wayland - optional but recommended)
 - **Clipboard tools**: xclip/xsel (X11) or wl-clipboard (Wayland)
 
 If you are missing any of the required dependencies the installation script will let you know.
@@ -203,8 +205,13 @@ experiencing a crash. The script will create a timestamped file with all relevan
 ### Text Insertion Not Working
 
 1. **On X11**: Ensure xdotool is installed
-2. **On Wayland**: Text insertion is limited - use Copy to Clipboard instead
+2. **On Wayland**: Install `wtype` for text insertion support:
+   - Fedora: `sudo dnf install wtype`
+   - Ubuntu/Debian: `sudo apt install wtype`
+   - Arch: `sudo pacman -S wtype`
+   - If wtype is not available, the extension will fall back to xdotool for XWayland windows
 3. Check if target application accepts simulated keyboard input
+4. Enable "Auto-insert on Wayland" in the extension settings (requires wtype)
 
 ## Uninstallation
 

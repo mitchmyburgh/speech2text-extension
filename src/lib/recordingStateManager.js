@@ -235,17 +235,33 @@ export class RecordingStateManager {
 
     // Check if we should skip preview and auto-insert
     const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
+    const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
     const isWayland = Meta.is_wayland_compositor();
 
     log.debug(`=== SETTINGS CHECK ===`);
-    log.debug(`skipPreviewX11 (auto-insert): ${skipPreviewX11}`);
+    log.debug(`skipPreviewX11 (auto-insert X11): ${skipPreviewX11}`);
+    log.debug(`autoInsertWayland: ${autoInsertWayland}`);
     log.debug(`isWayland: ${isWayland}`);
-    log.debug(`Should show preview: ${!(!isWayland && skipPreviewX11)}`);
 
-    // Check if we should show preview or auto-insert
-    const shouldShowPreview = !(!isWayland && skipPreviewX11);
+    // Determine if we should auto-insert
+    const shouldAutoInsert = isWayland 
+      ? autoInsertWayland 
+      : skipPreviewX11;
+    
+    log.debug(`Should auto-insert: ${shouldAutoInsert}`);
+    log.debug(`Should show preview: ${!shouldAutoInsert}`);
 
-    if (shouldShowPreview) {
+    if (shouldAutoInsert) {
+      log.debug("=== AUTO-INSERT MODE ===");
+      log.debug("Auto-inserting text (skip preview enabled)");
+      if (this.recordingDialog) {
+        this.recordingDialog.close();
+        this.recordingDialog = null;
+      }
+      this.currentRecordingId = null;
+      this.updateIcon(false);
+      return { action: "insert", text };
+    } else {
       log.debug("=== PREVIEW MODE ===");
       if (
         this.recordingDialog &&
@@ -261,16 +277,6 @@ export class RecordingStateManager {
         this.updateIcon(false);
         return { action: "createPreview", text };
       }
-    } else {
-      log.debug("=== AUTO-INSERT MODE ===");
-      log.debug("Auto-inserting text (skip preview enabled)");
-      if (this.recordingDialog) {
-        this.recordingDialog.close();
-        this.recordingDialog = null;
-      }
-      this.currentRecordingId = null;
-      this.updateIcon(false);
-      return { action: "insert", text };
     }
   }
 

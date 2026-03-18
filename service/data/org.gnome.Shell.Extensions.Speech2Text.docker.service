@@ -1,0 +1,16 @@
+[D-Bus Service]
+Name=org.gnome.Shell.Extensions.Speech2Text
+# This is a placeholder service file for Docker-based deployment
+# The actual service runs inside a Docker container
+# Use the docker-run.sh script to start the service
+#
+# To use this file:
+# 1. Copy to ~/.local/share/dbus-1/services/
+# 2. Or system-wide to /usr/share/dbus-1/services/
+#
+# Note: D-Bus activation is not supported with Docker containers
+# because the service needs to be started explicitly with proper
+# volume mounts and device access.
+#
+# Please use: ./docker-run.sh start
+Exec=/bin/false

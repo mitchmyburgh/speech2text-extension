@@ -214,8 +214,27 @@ class Speech2TextService(ServiceInterface):
         clipboard_available = False
         session_type = os.environ.get("XDG_SESSION_TYPE", "")
 
-        # Check for xdotool (for X11 typing only)
-        if session_type != "wayland":
+        # Check for typing tools
+        if session_type == "wayland":
+            # On Wayland, prefer wtype but xdotool can work for XWayland apps
+            has_typing_tool = False
+            try:
+                subprocess.run(["which", "wtype"], capture_output=True, check=True)
+                has_typing_tool = True
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                pass
+            
+            if not has_typing_tool:
+                try:
+                    subprocess.run(["xdotool", "--version"], capture_output=True, check=True)
+                    has_typing_tool = True
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    pass
+            
+            if not has_typing_tool:
+                missing.append("wtype or xdotool (for text insertion)")
+        else:
+            # On X11, xdotool is required
             try:
                 subprocess.run(["xdotool", "--version"], capture_output=True, check=True)
             except (FileNotFoundError, subprocess.CalledProcessError):
@@ -335,10 +354,30 @@ class Speech2TextService(ServiceInterface):
         if not text:
             return False
 
+        display_server = self._detect_display_server()
+
         try:
-            # Use xdotool for typing (works on both X11 and XWayland)
-            subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
-            return True
+            if display_server == "wayland":
+                # Try wtype first (native Wayland)
+                try:
+                    # wtype doesn't support newlines directly, so we split and handle them
+                    lines = text.split('\n')
+                    for i, line in enumerate(lines):
+                        if i > 0:
+                            # Insert newline between lines
+                            subprocess.run(["wtype", "-k", "Return"], check=True)
+                        if line:
+                            subprocess.run(["wtype", line], check=True)
+                    return True
+                except (FileNotFoundError, subprocess.CalledProcessError) as e:
+                    print(f"wtype failed, falling back to xdotool (XWayland): {e}")
+                    # Fall back to xdotool for XWayland windows
+                    subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
+                    return True
+            else:
+                # X11 - use xdotool
+                subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
+                return True
         except Exception as e:
             print(f"Error typing text: {e}")
             return False

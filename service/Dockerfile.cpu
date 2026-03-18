@@ -1,0 +1,60 @@
+# Dockerfile for GNOME Speech2Text Service (CPU-only version)
+# Use this when GPU/CUDA is not available
+
+FROM python:3.11-slim-bookworm
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libportaudio2 \
+    libportaudiocpp0 \
+    libportaudio-dev \
+    libasound2 \
+    libasound2-dev \
+    libgirepository1.0-dev \
+    libcairo2-dev \
+    pkg-config \
+    dbus \
+    dbus-x11 \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CPU-only PyTorch first (smaller image, no CUDA)
+RUN pip3 install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Install Python dependencies (excluding torch which we installed above)
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir openai-whisper dbus-next
+
+# Copy the service source code
+COPY src/ ./src/
+COPY data/ ./data/
+COPY pyproject.toml .
+COPY LICENSE .
+COPY README.md .
+
+# Install the service package
+RUN pip3 install --no-cache-dir --no-deps .
+
+# Create directories for runtime
+RUN mkdir -p /tmp/speech2text /var/run/dbus
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+ENV PULSE_SERVER=unix:/run/user/1000/pulse/native
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text \
+        --type=method_call --print-reply /org/gnome/Shell/Extensions/Speech2Text \
+        org.freedesktop.DBus.Peer.Ping 2>/dev/null || exit 1
+
+# Default command
+CMD ["speech2text-extension-service"]
