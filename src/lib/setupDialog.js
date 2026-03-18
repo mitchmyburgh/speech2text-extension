@@ -4,13 +4,8 @@ import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
-import { COLORS, STYLES } from "./constants.js";
-import { createHorizontalBox, createStyledLabel } from "./uiUtils.js";
-import {
-  createCenteredBox,
-  createHeaderLayout,
-  createCloseButton,
-} from "./buttonUtils.js";
+import { COLORS } from "./constants.js";
+import { createCloseButton } from "./buttonUtils.js";
 import {
   log,
   readInstalledServiceConfig,
@@ -50,146 +45,115 @@ export class ServiceSetupDialog {
     if (this._installStateKnown) {
       this.statusLabel.set_text(this._getInstalledConfigText());
       this.statusLabel.set_style(`
-        font-size: 14px;
-        color: ${COLORS.INFO};
-        margin: 10px 0;
-        padding: 10px;
-        background-color: rgba(23, 162, 184, 0.1);
-        border-radius: 5px;
+        font-size: 12px;
+        font-family: monospace;
+        color: #888;
+        padding: 8px 10px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border-radius: 6px;
+        margin-bottom: 4px;
       `);
     } else {
-      this.statusLabel.set_text(
-        `Service Status: ${this.errorMessage || "Service not installed"}`
-      );
+      this.statusLabel.set_text(this.errorMessage || "Service not installed");
       this.statusLabel.set_style(`
-        font-size: 14px;
+        font-size: 13px;
         color: ${COLORS.DANGER};
-        margin: 10px 0;
-        padding: 10px;
-        background-color: rgba(255, 0, 0, 0.1);
-        border-radius: 5px;
+        padding: 8px 10px;
+        background-color: rgba(255, 68, 68, 0.08);
+        border-radius: 6px;
+        margin-bottom: 4px;
       `);
     }
   }
 
   _buildDialog() {
-    // Create modal overlay
     this.overlay = new St.Widget({
-      style: "background-color: rgba(0,0,0,0.8);",
+      style: "background-color: rgba(0,0,0,0.6);",
       reactive: true,
       can_focus: true,
       track_hover: true,
     });
 
-    // Main dialog container (matching settings dialog styling exactly)
     this.dialogContainer = new St.BoxLayout({
-      style_class: "setup-dialog-window",
       vertical: true,
       style: `
-        background-color: rgba(20, 20, 20, 0.95);
-        border-radius: 12px;
-        padding: 24px;
-        min-width: 600px;
-        max-width: 700px;
-        border: ${STYLES.DIALOG_BORDER};
+        background-color: rgba(24, 24, 28, 0.99);
+        border-radius: 14px;
+        min-width: 480px;
+        max-width: 560px;
+        spacing: 0;
       `,
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    // Header with close button (matching settings dialog pattern)
-    let titleContainer = createCenteredBox(false, "15px");
-    titleContainer.set_x_align(Clutter.ActorAlign.START);
-    titleContainer.set_x_expand(true);
-
-    const headerIcon = createStyledLabel("⚠️", "icon", "font-size: 36px;");
-    const headerText = createStyledLabel(
-      "Speech2Text Service Setup",
-      "title",
-      `color: ${COLORS.PRIMARY};`
-    );
-
-    titleContainer.add_child(headerIcon);
-    titleContainer.add_child(headerText);
-
-    // Create top-right close button
-    this.closeButton = createCloseButton(32);
-    const headerBox = createHeaderLayout(titleContainer, this.closeButton);
-
-    // Status message (installed state)
-    this.statusLabel = new St.Label({
-      text: "",
-      style: "",
+    // ── Header ──
+    const header = new St.BoxLayout({
+      vertical: false,
+      style: `
+        padding: 18px 20px 16px;
+        spacing: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      `,
+      x_expand: true,
     });
+
+    const title = new St.Label({
+      text: "Service Setup",
+      style: "font-size: 16px; font-weight: bold; color: white;",
+      y_align: Clutter.ActorAlign.CENTER,
+      x_expand: true,
+    });
+
+    this.closeButton = createCloseButton(28);
+    header.add_child(title);
+    header.add_child(this.closeButton);
+
+    // ── Body ──
+    const body = new St.BoxLayout({
+      vertical: true,
+      style: "padding: 18px 20px 22px; spacing: 12px;",
+      x_expand: true,
+    });
+
+    this.statusLabel = new St.Label({ text: "", style: "" });
     this._refreshStatusLabel();
 
-    // Main explanation
-    const explanation = `Speech2Text requires a background service for speech processing.
-This service is installed separately from the extension (following GNOME guidelines).
-Installation instructions are maintained in the project repository.`;
-    const explanationText = new St.Label({
-      text: explanation,
-      style: `
-        font-size: 16px;
-        color: ${COLORS.WHITE};
-        margin: 15px 0;
-        line-height: 1.5;
-      `,
+    const explanation = new St.Label({
+      text: "Speech2Text requires a background service for audio processing.\nSee the project repository for installation instructions.",
+      style: "font-size: 13px; color: #aaa; line-height: 1.5;",
     });
-
-    // Link to manual instructions on GitHub
-    const manualTitle = new St.Label({
-      text: "Manual Installation:",
-      style: `
-        font-size: 16px;
-        font-weight: bold;
-        color: ${COLORS.INFO};
-        margin: 20px 0 10px 0;
-      `,
-    });
-
-    const manualText = new St.Label({
-      text: "For installation instructions, visit the GitHub repository:",
-      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
-    });
+    explanation.get_clutter_text().set_line_wrap(true);
 
     const repoLink = new St.Button({
-      label: "https://github.com/kavehtehrani/speech2text-extension",
+      label: "github.com/mitchmyburgh/speech2text-extension",
       style: `
-        background-color: transparent;
-        border: none;
-        color: ${COLORS.INFO};
-        font-size: 14px;
-        padding: 0;
-        margin: 5px 0 10px 0;
-        text-decoration: underline;
+        background-color: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        color: #ccc;
+        font-size: 12px;
+        font-family: monospace;
+        padding: 8px 12px;
       `,
       x_align: Clutter.ActorAlign.START,
+      reactive: true,
+      can_focus: true,
     });
-
     repoLink.connect("clicked", () => {
-      this._openUrl("https://github.com/kavehtehrani/speech2text-extension");
+      this._openUrl("https://github.com/mitchmyburgh/speech2text-extension");
     });
 
-    // Action buttons
-    const buttonBox = createHorizontalBox();
-    buttonBox.set_x_align(Clutter.ActorAlign.CENTER);
+    body.add_child(this.statusLabel);
+    body.add_child(explanation);
+    body.add_child(repoLink);
 
-    // Assemble dialog
-    this.dialogContainer.add_child(headerBox);
-    this.dialogContainer.add_child(this.statusLabel);
-    this.dialogContainer.add_child(explanationText);
-    this.dialogContainer.add_child(manualTitle);
-    this.dialogContainer.add_child(manualText);
-    this.dialogContainer.add_child(repoLink);
-    this.dialogContainer.add_child(buttonBox);
-
+    this.dialogContainer.add_child(header);
+    this.dialogContainer.add_child(body);
     this.overlay.add_child(this.dialogContainer);
 
-    // Close button handler
     this.closeButton.connect("clicked", () => this.close());
 
-    // Set up standard modal event handlers (Escape key + click outside to close)
     const handlers = setupModalEventHandlers(this.overlay, () => this.close());
     this.keyPressHandler = handlers.keyPressHandler;
     this.clickHandler = handlers.clickHandler;
