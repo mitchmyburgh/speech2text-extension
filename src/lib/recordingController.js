@@ -249,85 +249,32 @@ export class RecordingController {
   _showPreview(text) {
     log.debug("Showing preview for text:", text);
 
-    const settings = this.uiManager.extensionCore.settings;
-    const useDynamicIsland = this._shouldUseDynamicIsland(settings);
-
-    if (useDynamicIsland) {
-      // Use Dynamic Island for preview
-      const dialog = this.recordingStateManager?.recordingDialog;
-      if (dialog && dialog instanceof DynamicIsland) {
-        dialog.showPreview(text);
-      } else {
-        // Create new Dynamic Island for preview
-        const isWayland = Meta.is_wayland_compositor();
-        const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
-
-        const dynamicIsland = new DynamicIsland(
-          () => {
-            dynamicIsland.close();
-          },
-          null,
-          (finalText) => {
-            log.debug(`Inserting text from preview: ${finalText}`);
-            this._typeText(finalText);
-          },
-          {
-            maxDuration: 0,
-            showTranscription: true,
-            autoInsertOnWayland: true,
-          }
-        );
-
-        dynamicIsland.open();
-        dynamicIsland.showPreview(text);
-      }
+    // Always use Dynamic Island for preview — check if one is already open
+    const dialog = this.recordingStateManager?.recordingDialog;
+    if (dialog && dialog instanceof DynamicIsland) {
+      dialog.showPreview(text);
     } else {
-      // Use traditional dialog for preview
-      this._showPreviewDialog(text);
+      this._createDynamicIslandPreview(text);
     }
   }
 
-  _showPreviewDialog(text) {
-    log.debug("Creating preview dialog for text:", text);
-
-    // Create a new preview-only dialog
-    const previewDialog = new RecordingDialog(
-      () => {
-        // Cancel callback - just close
-        previewDialog.close();
-      },
-      (finalText) => {
-        // Insert callback
-        log.debug(`Inserting text from preview: ${finalText}`);
-        this._typeText(finalText);
-        previewDialog.close();
-      },
-      null, // No stop callback needed for preview-only
-      0 // No duration for preview-only
-    );
-
-    // First open the dialog, then show preview
-    log.debug("Opening preview dialog");
-    previewDialog.open();
-    log.debug("Showing preview in opened dialog");
-    previewDialog.showPreview(text);
+  _showCopyOnlyPreviewDialog(text) {
+    // Route through DI instead of a modal dialog
+    this._showPreview(text);
   }
 
-  _showCopyOnlyPreviewDialog(text) {
-    const previewDialog = new RecordingDialog(
-      () => {
-        previewDialog.close();
-      },
-      (finalText) => {
-        log.debug(`Inserting text from copy-only preview: ${finalText}`);
-        this._typeText(finalText);
-        previewDialog.close();
-      },
+  _createDynamicIslandPreview(text) {
+    const dynamicIsland = new DynamicIsland(
+      () => { dynamicIsland.close(); },
       null,
-      0
+      (finalText) => {
+        log.debug(`Inserting text from preview: ${finalText}`);
+        this._typeText(finalText);
+      },
+      { maxDuration: 0, showTranscription: true, autoInsertOnWayland: true }
     );
-    previewDialog.open();
-    previewDialog.showPreview(text);
+    dynamicIsland.open();
+    dynamicIsland.showPreview(text);
   }
 
   async _typeText(text) {
