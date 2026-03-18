@@ -135,6 +135,76 @@ sudo pacman -S xdotool           # Arch
 
 ### Step 3 — Install the D-Bus Service
 
+Choose **one** of the methods below: Docker (recommended if you have Docker) or native install.
+
+#### Option A — Docker (no Python/CUDA setup required)
+
+Pre-built images are published to GitHub Container Registry on every push to `main`.
+
+**CPU-only (recommended for most users):**
+
+```bash
+docker run -d \
+  --name speech2text-service \
+  -e DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus \
+  -v /run/user/$(id -u)/bus:/run/user/$(id -u)/bus \
+  -v /run/user/$(id -u)/pulse/native:/run/user/1000/pulse/native:ro \
+  --device /dev/snd \
+  --group-add audio \
+  --network host \
+  ghcr.io/mitchmyburgh/speech2text-extension:cpu
+```
+
+**GPU (NVIDIA CUDA — much faster transcription):**
+
+First install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), then:
+
+```bash
+docker run -d \
+  --name speech2text-service \
+  --runtime=nvidia \
+  -e NVIDIA_VISIBLE_DEVICES=all \
+  -e DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus \
+  -v /run/user/$(id -u)/bus:/run/user/$(id -u)/bus \
+  -v /run/user/$(id -u)/pulse/native:/run/user/1000/pulse/native:ro \
+  --device /dev/snd \
+  --group-add audio \
+  --network host \
+  ghcr.io/mitchmyburgh/speech2text-extension:latest
+```
+
+**Available image tags:**
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | GPU/CUDA image, latest main branch build |
+| `gpu` | Same as `latest` |
+| `cpu` | CPU-only image, latest main branch build |
+| `v1.2.3` | GPU image for a specific release |
+| `v1.2.3-cpu` | CPU image for a specific release |
+
+**Manage the container:**
+
+```bash
+# View logs
+docker logs -f speech2text-service
+
+# Stop
+docker stop speech2text-service
+
+# Restart
+docker restart speech2text-service
+
+# Remove
+docker rm -f speech2text-service
+```
+
+> The container mounts your host's D-Bus socket and PulseAudio/PipeWire socket so the service communicates with GNOME Shell exactly as if it were installed natively.
+
+---
+
+#### Option B — Native install
+
 The Python service handles audio recording and Whisper transcription. Install from local source:
 
 ```bash
