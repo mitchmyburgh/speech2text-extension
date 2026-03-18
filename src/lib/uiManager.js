@@ -1,5 +1,6 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
+import Gio from "gi://Gio";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -20,6 +21,12 @@ export class UIManager {
   }
 
   initialize() {
+    // Get extension path for custom icons
+    const extensionPath = this.extensionCore.path || 
+      this.extensionCore.metadata?.path || 
+      this.extensionCore.dir?.get_path?.() || 
+      "";
+
     // Create the panel button
     this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
 
@@ -28,11 +35,25 @@ export class UIManager {
       style_class: "panel-status-indicators-box",
     });
 
-    // Set up the icon
-    this.iconWidget = new St.Icon({
-      icon_name: "microphone-symbolic",
-      style_class: "system-status-icon",
-    });
+    // Set up the icon using custom Remix Icon
+    const iconPath = `${extensionPath}/icons/mic-line.svg`;
+    const iconFile = Gio.File.new_for_path(iconPath);
+    
+    if (iconFile.query_exists(null)) {
+      // Use custom SVG icon
+      const fileIcon = new Gio.FileIcon({ file: iconFile });
+      this.iconWidget = new St.Icon({
+        gicon: fileIcon,
+        style_class: "system-status-icon",
+        icon_size: 16,
+      });
+    } else {
+      // Fallback to system icon
+      this.iconWidget = new St.Icon({
+        icon_name: "microphone-symbolic",
+        style_class: "system-status-icon",
+      });
+    }
     iconBox.add_child(this.iconWidget);
 
     // Processing label (hidden by default)
@@ -155,11 +176,24 @@ export class UIManager {
         return;
       }
 
+      // Get extension path for custom icon
+      const extensionPath = this.extensionCore.path || 
+        this.extensionCore.metadata?.path || 
+        "";
+      const iconPath = `${extensionPath}/icons/mic-fill.svg`;
+      const iconFile = Gio.File.new_for_path(iconPath);
+      
+      let gicon = null;
+      if (iconFile.query_exists(null)) {
+        gicon = new Gio.FileIcon({ file: iconFile });
+      }
+
       const notification = new MessageTray.Notification({
         source,
         title,
         body: message,
-        iconName: "microphone-symbolic",
+        iconName: gicon ? undefined : "microphone-symbolic",
+        gicon: gicon || undefined,
         urgency: MessageTray.Urgency?.NORMAL ?? undefined,
       });
 

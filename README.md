@@ -17,7 +17,7 @@ using OpenAI's automated speech recognition [Whisper](https://github.com/openai/
 ## Features
 
 - 🎤 **Speech Recognition** using OpenAI Whisper
-- 🖱️ **Click to Record** from top panel microphone icon
+- 🖱️ **Click to Record** from top panel microphone icon (using Remix Icon)
 - ⌨️ **Keyboard Shortcut** support (default: Ctrl+Space)
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - 🔒 **Privacy-First** - All processing happens locally
