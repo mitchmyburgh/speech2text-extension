@@ -278,13 +278,11 @@ export class DynamicIsland {
   _positionAtTop() {
     const monitor = Main.layoutManager.primaryMonitor;
 
-    // Place just below the GNOME top panel
-    const panelHeight = Main.layoutManager.panelBox
-      ? Main.layoutManager.panelBox.height
-      : 32;
+    // Main.panel.height is reliable; panelBox.height can be 0 before first allocation
+    const panelHeight = Main.panel ? Main.panel.height : 32;
     const y = monitor.y + panelHeight + 8;
 
-    // Centre horizontally based on allocated width, falling back to known preview width
+    // Centre horizontally based on allocated width, falling back to container style width
     const [allocWidth] = this.container.get_size();
     const containerWidth = allocWidth > 0 ? allocWidth : monitor.width - 80;
     const x = monitor.x + Math.round((monitor.width - containerWidth) / 2);
@@ -425,40 +423,57 @@ export class DynamicIsland {
 
     this.innerBox.remove_all_children();
     this.innerBox.vertical = true;
-    this.innerBox.style = "spacing: 10px; padding: 16px 20px;";
+    this.innerBox.style = "spacing: 14px; padding: 18px 24px;";
     this.innerBox.x_expand = true;
 
-    const monitor = Main.layoutManager.primaryMonitor;
-    const margin = 40;
-    const targetWidth = monitor.width - margin * 2;
     this.container.set_style(`
       ${BASE_STYLE}
-      border-radius: 16px;
-      width: ${targetWidth}px;
+      border-radius: 18px;
+      min-width: 280px;
+      max-width: 560px;
     `);
 
-    // Compact header row: icon + title + spacer + close button
+    // Header row — matches expanded DI style
     const header = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 8px;",
+      style: "spacing: 10px;",
       x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     const iconLbl = new St.Label({
       text: "📝",
-      style: "font-size: 14px;",
+      style: "font-size: 18px;",
       y_align: Clutter.ActorAlign.CENTER,
     });
 
     const titleLbl = new St.Label({
-      text: "TRANSCRIPTION",
-      style: "font-size: 10px; font-weight: bold; color: #666; letter-spacing: 0.8px;",
+      text: "Transcription",
+      style: "font-size: 15px; font-weight: bold; color: white;",
       y_align: Clutter.ActorAlign.CENTER,
       x_expand: true,
     });
 
+    const closeBtn = new St.Button({
+      label: "✕",
+      style: `
+        color: #666;
+        background: transparent;
+        border: none;
+        font-size: 13px;
+        padding: 2px 4px;
+      `,
+      reactive: true,
+      can_focus: true,
+    });
+    closeBtn.connect("clicked", () => {
+      this.close();
+      if (this.onCancel) this.onCancel();
+    });
+
     header.add_child(iconLbl);
     header.add_child(titleLbl);
+    header.add_child(closeBtn);
 
     // Editable text entry
     const textEntry = new St.Entry({
@@ -483,35 +498,32 @@ export class DynamicIsland {
     ct.set_single_line_mode(false);
     ct.set_activatable(false);
 
-    // Close button (right side of header)
-    const closeBtn = new St.Button({
-      label: "✕",
-      style: `
-        color: #666;
-        background: transparent;
-        border: none;
-        font-size: 13px;
-        padding: 0 2px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
-    closeBtn.connect("clicked", () => {
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-    header.add_child(closeBtn);
-
-    // Hint line
-    const hint = new St.Label({
-      text: "↵ insert  •  Esc cancel",
-      style: "font-size: 11px; color: #444; text-align: center;",
+    // Button row — same style as expanded DI
+    const buttonRow = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 8px;",
       x_align: Clutter.ActorAlign.CENTER,
     });
 
+    const insertBtn = this._makeButton("↵  Insert", COLORS.SUCCESS);
+    insertBtn.connect("clicked", () => {
+      const finalText = textEntry.get_text();
+      this.close();
+      if (this.onInsert) this.onInsert(finalText);
+    });
+
+    const cancelBtn = this._makeButton("✕  Cancel", "#444");
+    cancelBtn.connect("clicked", () => {
+      this.close();
+      if (this.onCancel) this.onCancel();
+    });
+
+    buttonRow.add_child(insertBtn);
+    buttonRow.add_child(cancelBtn);
+
     this.innerBox.add_child(header);
     this.innerBox.add_child(textEntry);
-    this.innerBox.add_child(hint);
+    this.innerBox.add_child(buttonRow);
 
     this._positionAtTop();
 

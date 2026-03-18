@@ -350,7 +350,7 @@ class Speech2TextService(ServiceInterface):
             return False
 
     def _type_text(self, text):
-        """Paste text by copying to clipboard then simulating Ctrl+V."""
+        """Type text using wtype (Wayland) or xdotool (X11)."""
         if not text:
             return False
 
@@ -361,33 +361,27 @@ class Speech2TextService(ServiceInterface):
         display_server = self._detect_display_server()
 
         try:
-            # Step 1: copy to clipboard
             if display_server == "wayland":
-                subprocess.run(["wl-copy"], input=text, text=True, check=True)
+                # wtype: 500ms pre-start delay so the GNOME Shell overlay has fully closed
+                # and keyboard focus has returned to the target window, then 50ms between
+                # keystrokes to avoid dropped/duplicated characters.
+                lines = text.split('\n')
+                first_chunk = True
+                for i, line in enumerate(lines):
+                    if i > 0:
+                        subprocess.run(["wtype", "-k", "Return"], check=True)
+                    if line:
+                        if first_chunk:
+                            subprocess.run(["wtype", "-s", "500", "-d", "50", line], check=True)
+                            first_chunk = False
+                        else:
+                            subprocess.run(["wtype", "-d", "50", line], check=True)
             else:
-                try:
-                    subprocess.run(
-                        ["xclip", "-selection", "clipboard"],
-                        input=text, text=True, check=True,
-                    )
-                except (FileNotFoundError, subprocess.CalledProcessError):
-                    subprocess.run(
-                        ["xsel", "--clipboard", "--input"],
-                        input=text, text=True, check=True,
-                    )
-
-            # Step 2: wait for focus to return to the target window after the dialog closes
-            time.sleep(0.4)
-
-            # Step 3: simulate Ctrl+V to paste as one block
-            if display_server == "wayland":
-                subprocess.run(["wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl"], check=True)
-            else:
-                subprocess.run(["xdotool", "key", "ctrl+v"], check=True)
-
+                # X11
+                subprocess.run(["xdotool", "type", "--delay", "50", text], check=True)
             return True
         except Exception as e:
-            print(f"Error pasting text: {e}")
+            print(f"Error typing text: {e}")
             return False
 
     def _cleanup_recording(self, recording_id):
