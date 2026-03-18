@@ -217,23 +217,12 @@ class Speech2TextService(ServiceInterface):
 
         # Check for typing tools
         if session_type == "wayland":
-            # On Wayland, prefer wtype but xdotool can work for XWayland apps
-            has_typing_tool = False
+            # On Wayland, ydotool works via /dev/uinput (GNOME/Mutter compatible).
+            # wtype is NOT compatible with GNOME — it requires a wlroots compositor.
             try:
-                subprocess.run(["which", "wtype"], capture_output=True, check=True)
-                has_typing_tool = True
+                subprocess.run(["which", "ydotool"], capture_output=True, check=True)
             except (FileNotFoundError, subprocess.CalledProcessError):
-                pass
-            
-            if not has_typing_tool:
-                try:
-                    subprocess.run(["xdotool", "--version"], capture_output=True, check=True)
-                    has_typing_tool = True
-                except (FileNotFoundError, subprocess.CalledProcessError):
-                    pass
-            
-            if not has_typing_tool:
-                missing.append("wtype or xdotool (for text insertion)")
+                missing.append("ydotool (for text insertion on Wayland)")
         else:
             # On X11, xdotool is required
             try:
@@ -390,16 +379,16 @@ class Speech2TextService(ServiceInterface):
             return False
 
         display_server = self._detect_display_server()
-        print(f"_type_text: display_server={display_server}, WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY')}, XDG_RUNTIME_DIR={os.environ.get('XDG_RUNTIME_DIR')}")
 
         try:
             if display_server == "wayland":
-                lines = text.split('\n')
-                for i, line in enumerate(lines):
-                    if i > 0:
-                        subprocess.run(["wtype", "-k", "Return"], check=True)
-                    if line:
-                        subprocess.run(["wtype", line], check=True)
+                # ydotool uses /dev/uinput — works on GNOME/Mutter unlike wtype
+                # which requires a wlroots compositor.
+                # --next-delay 12: 12ms between keystrokes to avoid dropped chars.
+                subprocess.run(
+                    ["ydotool", "type", "--next-delay", "12", "--", text],
+                    check=True
+                )
             else:
                 # X11
                 subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)

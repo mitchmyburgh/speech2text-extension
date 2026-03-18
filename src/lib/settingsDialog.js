@@ -438,7 +438,7 @@ export class SettingsDialog {
       this.autoInsertWaylandCheckbox = button;
       this.autoInsertWaylandCheckboxIcon = knob;
       const sublabel = new St.Label({
-        text: "Requires wtype",
+        text: "Requires ydotool",
         style: `font-size: 11px; color: #444; margin-top: 1px;`,
       });
       rows.push(this._optionRow("Auto-insert on Wayland", button, sublabel));
