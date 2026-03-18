@@ -277,9 +277,7 @@ export class DynamicIsland {
 
   _positionAtTop() {
     const monitor = Main.layoutManager.primaryMonitor;
-    const [width] = this.container.get_size();
-    const x = Math.round((monitor.width - (width || 220)) / 2);
-    this.container.set_position(monitor.x + x, monitor.y + 12);
+    this.container.set_position(monitor.x + 40, monitor.y + 12);
   }
 
   _startPulsing() {
@@ -416,19 +414,22 @@ export class DynamicIsland {
     this.innerBox.remove_all_children();
     this.innerBox.vertical = true;
     this.innerBox.style = "spacing: 10px; padding: 16px 20px;";
+    this.innerBox.x_expand = true;
 
+    const monitor = Main.layoutManager.primaryMonitor;
+    const margin = 40;
+    const targetWidth = monitor.width - margin * 2;
     this.container.set_style(`
       ${BASE_STYLE}
       border-radius: 16px;
-      min-width: 420px;
-      max-width: 620px;
+      width: ${targetWidth}px;
     `);
 
-    // Compact header row
+    // Compact header row: icon + title + spacer + close button
     const header = new St.BoxLayout({
       vertical: false,
       style: "spacing: 8px;",
-      x_align: Clutter.ActorAlign.START,
+      x_expand: true,
     });
 
     const iconLbl = new St.Label({
@@ -441,6 +442,7 @@ export class DynamicIsland {
       text: "TRANSCRIPTION",
       style: "font-size: 10px; font-weight: bold; color: #666; letter-spacing: 0.8px;",
       y_align: Clutter.ActorAlign.CENTER,
+      x_expand: true,
     });
 
     header.add_child(iconLbl);
@@ -460,6 +462,7 @@ export class DynamicIsland {
       `,
       can_focus: true,
       reactive: true,
+      x_expand: true,
     });
 
     const ct = textEntry.get_clutter_text();
@@ -468,7 +471,7 @@ export class DynamicIsland {
     ct.set_single_line_mode(false);
     ct.set_activatable(false);
 
-    // Header row: icon + title + close button
+    // Close button (right side of header)
     const closeBtn = new St.Button({
       label: "✕",
       style: `
