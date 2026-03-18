@@ -447,7 +447,7 @@ export class DynamicIsland {
 
     // Keyboard hint row
     const hintLbl = new St.Label({
-      text: "↵ insert  ·  Esc cancel",
+      text: "↵ copy  ·  Esc cancel",
       style: "font-size: 11px; color: #555;",
       x_align: Clutter.ActorAlign.CENTER,
     });
