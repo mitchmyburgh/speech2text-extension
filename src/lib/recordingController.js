@@ -92,9 +92,9 @@ export class RecordingController {
         }
       },
       (text) => {
-        // Insert callback (onInsert)
-        log.debug(`Inserting text from Dynamic Island: ${text}`);
-        this._typeText(text);
+        // Copy callback — preview mode uses clipboard, not wtype
+        log.debug(`Copying text from Dynamic Island preview: ${text}`);
+        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
         this.recordingStateManager.setRecordingDialog(null);
       },
       {
