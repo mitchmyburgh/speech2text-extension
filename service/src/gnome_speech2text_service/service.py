@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import glob
 import math
 import os
 import signal
@@ -300,6 +301,36 @@ class Speech2TextService(ServiceInterface):
         except Exception:
             return "x11"
 
+    def _get_wayland_env(self):
+        """Return an environment dict with WAYLAND_DISPLAY set.
+
+        GNOME Shell is the Wayland compositor and creates the Wayland socket
+        itself, so its own process environment may not contain WAYLAND_DISPLAY.
+        When the extension launches this service via Gio.Subprocess, the service
+        inherits that environment and wtype/wl-copy therefore cannot connect to
+        the compositor.  Scan XDG_RUNTIME_DIR for a wayland-* socket as a
+        fallback so Wayland tools always have a display to connect to.
+        """
+        env = os.environ.copy()
+        if env.get("WAYLAND_DISPLAY"):
+            return env
+
+        xdg_runtime = env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+        if not env.get("XDG_RUNTIME_DIR"):
+            env["XDG_RUNTIME_DIR"] = xdg_runtime
+
+        sockets = sorted(
+            s for s in glob.glob(os.path.join(xdg_runtime, "wayland-*"))
+            if not s.endswith(".lock")
+        )
+        if sockets:
+            env["WAYLAND_DISPLAY"] = os.path.basename(sockets[0])
+            print(f"Auto-detected WAYLAND_DISPLAY={env['WAYLAND_DISPLAY']}")
+        else:
+            print("Warning: could not detect WAYLAND_DISPLAY; wtype may fail")
+
+        return env
+
     def _copy_to_clipboard(self, text):
         """Copy text to clipboard with X11/Wayland support."""
         if not text:
@@ -362,20 +393,24 @@ class Speech2TextService(ServiceInterface):
 
         try:
             if display_server == "wayland":
-                # wtype: 500ms pre-start delay so the GNOME Shell overlay has fully closed
-                # and keyboard focus has returned to the target window, then 50ms between
-                # keystrokes to avoid dropped/duplicated characters.
+                env = self._get_wayland_env()
                 lines = text.split('\n')
                 first_chunk = True
                 for i, line in enumerate(lines):
                     if i > 0:
-                        subprocess.run(["wtype", "-k", "Return"], check=True)
+                        subprocess.run(["wtype", "-k", "Return"], check=True, env=env)
                     if line:
                         if first_chunk:
-                            subprocess.run(["wtype", "-s", "500", "-d", "50", line], check=True)
+                            # Sleep before the first keystroke so the GNOME Shell
+                            # overlay has fully closed and the Wayland compositor
+                            # has returned keyboard focus to the target window.
+                            time.sleep(0.5)
+                            # Use -- to prevent text starting with '-' being
+                            # interpreted as wtype flags.
+                            subprocess.run(["wtype", "-d", "50", "--", line], check=True, env=env)
                             first_chunk = False
                         else:
-                            subprocess.run(["wtype", "-d", "50", line], check=True)
+                            subprocess.run(["wtype", "-d", "50", "--", line], check=True, env=env)
             else:
                 # X11
                 subprocess.run(["xdotool", "type", "--delay", "50", text], check=True)
@@ -812,13 +847,12 @@ class Speech2TextService(ServiceInterface):
             return False
 
     @method()
-    def TypeText(self, text: "s", copy_to_clipboard: "b") -> "b":
+    async def TypeText(self, text: "s", copy_to_clipboard: "b") -> "b":
         """Type provided text directly."""
         try:
-            success = True
-
-            if not self._type_text(text):
-                success = False
+            # Run _type_text in a thread-pool executor so the asyncio event
+            # loop is not blocked during the wtype sleep + keystroke delay.
+            success = await self._loop.run_in_executor(None, self._type_text, text)
 
             if copy_to_clipboard:
                 if not self._copy_to_clipboard(text):
