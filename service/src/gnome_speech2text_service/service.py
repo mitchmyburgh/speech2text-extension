@@ -350,11 +350,10 @@ class Speech2TextService(ServiceInterface):
             return False
 
     def _type_text(self, text):
-        """Type text using appropriate method for display server."""
+        """Paste text by copying to clipboard then simulating Ctrl+V."""
         if not text:
             return False
 
-        # Strip trailing whitespace to avoid phantom spaces at end of typed text.
         text = text.rstrip()
         if not text:
             return False
@@ -362,37 +361,33 @@ class Speech2TextService(ServiceInterface):
         display_server = self._detect_display_server()
 
         try:
+            # Step 1: copy to clipboard
             if display_server == "wayland":
-                # Try wtype first (native Wayland)
-                try:
-                    # wtype doesn't support newlines directly, so we split and handle them.
-                    # -s 200: wait 200ms before starting so the GNOME Shell dialog has fully
-                    #         closed and keyboard focus has returned to the target window.
-                    # -d 20:  20ms between keystrokes so fast-typing apps don't drop/repeat chars.
-                    lines = text.split('\n')
-                    first_line = True
-                    for i, line in enumerate(lines):
-                        if i > 0:
-                            subprocess.run(["wtype", "-k", "Return"], check=True)
-                        if line:
-                            if first_line:
-                                # Only apply the pre-start delay on the very first chunk.
-                                subprocess.run(["wtype", "-s", "200", "-d", "20", line], check=True)
-                                first_line = False
-                            else:
-                                subprocess.run(["wtype", "-d", "20", line], check=True)
-                    return True
-                except (FileNotFoundError, subprocess.CalledProcessError) as e:
-                    print(f"wtype failed, falling back to xdotool (XWayland): {e}")
-                    # Fall back to xdotool for XWayland windows
-                    subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
-                    return True
+                subprocess.run(["wl-copy"], input=text, text=True, check=True)
             else:
-                # X11 - use xdotool
-                subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
-                return True
+                try:
+                    subprocess.run(
+                        ["xclip", "-selection", "clipboard"],
+                        input=text, text=True, check=True,
+                    )
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    subprocess.run(
+                        ["xsel", "--clipboard", "--input"],
+                        input=text, text=True, check=True,
+                    )
+
+            # Step 2: wait for focus to return to the target window after the dialog closes
+            time.sleep(0.3)
+
+            # Step 3: simulate Ctrl+V to paste as one block
+            if display_server == "wayland":
+                subprocess.run(["wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl"], check=True)
+            else:
+                subprocess.run(["xdotool", "key", "ctrl+v"], check=True)
+
+            return True
         except Exception as e:
-            print(f"Error typing text: {e}")
+            print(f"Error pasting text: {e}")
             return False
 
     def _cleanup_recording(self, recording_id):
