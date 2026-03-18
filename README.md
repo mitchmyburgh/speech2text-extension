@@ -5,263 +5,305 @@
 ![GNOME](https://img.shields.io/badge/GNOME-4A90D9?style=flat&logo=gnome&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
-![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
 ![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
 [![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/speech2text-extension/)
 
-A GNOME Shell extension that adds speech-to-text functionality
-using OpenAI's automated speech recognition [Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words transcribed with the option to automatically insert at your cursor (on X11 only).
-
-![recording-modal](./images/recording-modal.png)
+A GNOME Shell extension for speech-to-text using OpenAI's [Whisper](https://github.com/openai/whisper) model. Press a shortcut, speak, and your words are transcribed locally — nothing ever leaves your machine.
 
 ## Features
 
-- 🎤 **Speech Recognition** using OpenAI Whisper
-- 🖱️ **Click to Record** from top panel microphone icon (using Remix Icon)
-- ⌨️ **Keyboard Shortcut** support (default: Ctrl+Space)
-- 🌍 **Multi-language Support** (depending on Whisper model)
-- 🔒 **Privacy-First** - All processing happens locally
-- ⌨️ **Automatic Text Insertion** at cursor location (X11 and Wayland with wtype)
-- 🔄 **Non-blocking Mode** - Continue working while transcription processes in the background
-- 🏝️ **Dynamic Island UI** - Compact pill-shaped overlay for recording status and transcription preview
+- 🎤 **Local speech recognition** via OpenAI Whisper
+- ⌨️ **Keyboard shortcut** to start/stop recording (default: `Ctrl+Space`)
+- 🖱️ **Panel icon** for click-to-record
+- 🏝️ **Dynamic Island UI** — compact pill overlay showing recording status and transcription preview
+- 📋 **Copy to clipboard** with `Enter` from the preview
+- ⌨️ **Auto-insert at cursor** on Wayland (via ydotool) and X11 (via xdotool)
+- 🔄 **Non-blocking mode** — transcription runs in the background while you keep working
+- 🌍 **Multi-language** support depending on Whisper model
+- 🔒 **100% local** — no data sent to any server
 
 ## Architecture
 
-The extension consists of two components:
+The extension has two components that communicate over D-Bus:
 
-1. **GNOME Extension** (lightweight UI) - Provides the panel button, keyboard shortcuts, and settings
-2. **D-Bus Service** (separate package) - Handles audio recording, speech transcription, and text insertion
+| Component | What it does |
+|-----------|-------------|
+| **GNOME Extension** (JS) | Panel icon, keyboard shortcuts, Dynamic Island UI, settings |
+| **D-Bus Service** (Python) | Audio recording, Whisper transcription, text insertion |
 
-**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate
-D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over
-D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
-and must be installed separately as a dependency. This extension requires the external background
-service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed.
-See [Service Installation](#Service-Installation) below.
+The service runs as a separate process and is installed independently from the extension.
 
-## Requirements
+---
 
-### System Dependencies
+## Installation
 
-- **GNOME Shell 46 or later** (tested up to GNOME 49)
-- **Python 3.8–3.13** (Python 3.14+ not supported yet due to ML dependency compatibility)
-- **python3-venv** (for virtual environment creation)
-- **D-Bus Python library** is installed inside the service virtualenv (`dbus-next`; no system `python3-dbus` / `python3-gi` required)
-- **FFmpeg** (for audio recording)
-- **xdotool** (for text insertion on X11)
-- **wtype** (for text insertion on Wayland - optional but recommended)
-- **Clipboard tools**: xclip/xsel (X11) or wl-clipboard (Wayland)
+### Step 1 — Install the GNOME Extension
 
-If you are missing any of the required dependencies the installation script will let you know.
-
-# Installation
-
-## 1- Extension Installation
-
-### GNOME Extensions Store (recommended)
+**Via GNOME Extensions website (recommended):**
 
 [![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/speech2text-extension/)
 
-1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/speech2text-extension/) and click "Install"
-2. The extension will automatically detect required system packages and let you know what you will need to install
-3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
-4. Restart GNOME Shell to complete the installation
-
-### Manual Installation
-
-For the manual installation experience, use the repository installer script:
+**Or manually from source:**
 
 ```bash
-git clone https://github.com/kavehtehrani/speech2text-extension.git
+git clone https://github.com/mitchmyburgh/speech2text-extension.git
 cd speech2text-extension
 make install
 ```
 
-#### IMPORTANT: Restart GNOME Shell After Installation
+After installing, reload GNOME Shell:
+- **X11:** Press `Alt+F2`, type `r`, press `Enter`
+- **Wayland:** Log out and back in
 
-**For X11 sessions:**
+---
 
-1. Press `Alt+F2`
-2. Type `r`
-3. Press `Enter`
+### Step 2 — Install System Dependencies
 
-**For Wayland sessions:**
-
-1. Log out of your current session
-2. Log back in
-
-## 2- Service Installation
-
-The D-Bus service has to be manually installed per GNOME's guidelines. For most people, the 'base' model and 'cpu' processing is sufficient and most compatible across platforms.
+#### FFmpeg (required for audio recording)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --service-version 1.2.0 --whisper-model base
+sudo dnf install ffmpeg          # Fedora
+sudo apt install ffmpeg          # Ubuntu/Debian
+sudo pacman -S ffmpeg            # Arch
 ```
 
-#### Whisper model & CPU/GPU settings
-
-Speech2Text uses OpenAI Whisper locally. You configure model/device by (re)installing the D-Bus service with the appropriate installer flags:
-
-- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants. See [here](https://github.com/openai/whisper) for more info.
-- **Device**:
-  - **CPU (default)**: recommended for most users; easier install and compatibility.
-  - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
-    (Advanced users may be able to use other backends depending on their PyTorch build.)
-
-Important: switching CPU/GPU will require reinstalling the background service so the correct ML dependencies are installed.
-
-For instance if you wanted to run the whisper model 'medium' and use 'gpu' processing, then install the service with:
+#### Clipboard support
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --service-version 1.2.0 --gpu --whisper-model medium
+# Wayland
+sudo dnf install wl-clipboard    # Fedora
+sudo apt install wl-clipboard    # Ubuntu/Debian
+sudo pacman -S wl-clipboard      # Arch
+
+# X11
+sudo dnf install xclip           # Fedora
+sudo apt install xclip           # Ubuntu/Debian
+sudo pacman -S xclip             # Arch
 ```
 
-Notes about installers and distributions:
+#### Text insertion (for Auto-insert feature)
 
-- This repository includes `service/install-service.sh`, a distro-agnostic service installer that only verifies system
-  dependencies and installs the Python D-Bus service into `~/.local/share/speech2text-extension-service`.
-- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
-  packages.
-  - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
-    use `./service/install-service.sh --local` instead.
-  - Note: the installer supports **GPU mode** via `--gpu`.
+**Wayland — ydotool** (uses `/dev/uinput`, works on GNOME):
 
-The service is available as a Python package on
-PyPI: [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/)
+> **Note:** `wtype` does **not** work on GNOME/Mutter. GNOME does not implement the wlroots virtual keyboard protocol that wtype requires. Use `ydotool` instead.
 
-### Upgrading from older versions (CUDA/NVIDIA pip packages cleanup)
+```bash
+sudo dnf install ydotool         # Fedora
+sudo apt install ydotool         # Ubuntu/Debian
+sudo pacman -S ydotool           # Arch
+```
 
-Older versions of the service installer could pull GPU-related _pip packages_ (e.g. `nvidia-*`) into the service’s
-virtual environment. New versions default to **CPU-only** PyTorch wheels unless you explicitly choose GPU mode.
+Add your user to the `input` group:
 
-If you are using **CPU mode** and want to remove legacy GPU-related pip packages, simply re-run the installer
-(from the setup dialog or manually). The installer rebuilds the service virtual environment from scratch, so it will
-remove any old GPU-related pip packages from the service venv automatically.
+```bash
+sudo usermod -aG input $USER
+```
+
+Create a systemd user service so `ydotoold` starts automatically on login:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/ydotoold.service << 'EOF'
+[Unit]
+Description=ydotool daemon
+
+[Service]
+ExecStart=/usr/bin/ydotoold
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user enable --now ydotoold
+```
+
+**Log out and back in** for the `input` group to take effect, then verify:
+
+```bash
+ydotool type "hello"
+```
+
+**X11 — xdotool:**
+
+```bash
+sudo dnf install xdotool         # Fedora
+sudo apt install xdotool         # Ubuntu/Debian
+sudo pacman -S xdotool           # Arch
+```
+
+---
+
+### Step 3 — Install the D-Bus Service
+
+The Python service handles audio recording and Whisper transcription. Install from local source:
+
+```bash
+cd speech2text-extension/service
+./install-service.sh
+```
+
+Or from PyPI:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/mitchmyburgh/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --whisper-model base
+```
+
+#### Whisper model options
+
+| Model | Speed | Accuracy | RAM |
+|-------|-------|----------|-----|
+| `tiny` | Fastest | Lower | ~1 GB |
+| `base` | Fast | Good | ~1 GB |
+| `small` | Moderate | Better | ~2 GB |
+| `medium` | Slower | High | ~5 GB |
+| `large` | Slowest | Best | ~10 GB |
+
+`base` is recommended for most users.
+
+#### GPU mode (optional, NVIDIA CUDA)
+
+```bash
+./install-service.sh --gpu --whisper-model base
+```
+
+> Switching between CPU and GPU requires a full service reinstall.
+
+---
 
 ## Usage
 
-### Quick Start
+### Recording
 
-1. **Click** the microphone icon in the top panel, or
-2. **Press** the keyboard shortcut (default: Ctrl+Space)
-3. **Speak** when the recording dialog appears
-4. **Review** the transcribed text in the preview dialog
-5. **Click Insert** to type the text, or **Copy** to clipboard
+1. Press `Ctrl+Space` (or click the microphone icon in the panel)
+2. Speak — a Dynamic Island pill appears at the top of the screen
+3. Press the shortcut again (or click Stop) to finish
+4. The transcription appears in the preview
 
-#### Non-blocking Mode
+### Preview
 
-With non-blocking transcription enabled:
+After transcription the Dynamic Island shows the result:
 
-1. Record your speech as usual
-2. The modal closes immediately when recording stops
-3. A "..." appears next to the microphone icon while processing
-4. Click the notification when transcription is ready to review/copy
+- **`↵` (Enter)** — copies the text to clipboard
+- **`Esc`** — dismisses without copying
+
+### Auto-insert on Wayland
+
+Enable **Auto-insert on Wayland** in settings (requires ydotool set up as above). When enabled, transcribed text is typed directly into the focused field — no preview shown.
+
+### Non-blocking mode
+
+Enable **Non-blocking transcription** in settings to keep working while Whisper processes in the background. A spinner appears next to the panel icon while transcribing.
+
+---
+
+## Settings
+
+| Setting | Description |
+|---------|-------------|
+| Copy to clipboard automatically | Always copy transcription to clipboard |
+| Auto-insert on Wayland | Type text into focused field (requires ydotool) |
+| Auto-insert at cursor (X11) | Type text into focused field on X11 (requires xdotool) |
+| Non-blocking transcription | Transcribe in background without blocking UI |
+| Use Dynamic Island style UI | Compact pill overlay (recommended) |
+| Show transcription inline | Show text in the recording pill |
+
+---
 
 ## Troubleshooting
 
-If the extension doesn't appear in GNOME Extensions:
-
-First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have restarted your shell already. Otherwise, proceed to troubleshoot:
+### Check logs
 
 ```bash
-# View extension logs
-journalctl -f | grep -E "(gnome-shell|speech2text-extension-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
-
-# Check installation status
-make status
-
-# Verify schema compilation
-make verify-schema
-
+journalctl --user -f | grep -E "speech2text|Error|ydotool"
 ```
 
-If the D-Bus service isn't working:
+### Test the D-Bus service manually
 
 ```bash
-# Check if service is running
-dbus-send --session --print-reply --dest=org.gnome.Shell.Extensions.Speech2Text /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
+# Check service is running
+dbus-send --session --print-reply \
+  --dest=org.gnome.Shell.Extensions.Speech2Text \
+  /org/gnome/Shell/Extensions/Speech2Text \
+  org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
 
-# Start the service manually
+# Test text insertion
+dbus-send --session --print-reply \
+  --dest=org.gnome.Shell.Extensions.Speech2Text \
+  /org/gnome/Shell/Extensions/Speech2Text \
+  org.gnome.Shell.Extensions.Speech2Text.TypeText \
+  string:"hello world" boolean:false
+```
+
+### "failed to connect socket: No such file or directory"
+
+The `ydotoold` daemon is not running:
+
+```bash
+systemctl --user start ydotoold
+```
+
+If the service unit doesn't exist, follow the [ydotoold setup steps](#wayland--ydotool) above.
+
+### ydotool permission denied / can't open /dev/uinput
+
+You haven't logged out/in since being added to the `input` group:
+
+```bash
+sudo usermod -aG input $USER
+# Then log out and back in
+```
+
+### "Compositor does not support the virtual keyboard protocol"
+
+This means `wtype` is being used — it does not work on GNOME. Install and configure `ydotool` as described in Step 2.
+
+### Service not responding
+
+```bash
+# Restart the service
+pkill -f speech2text-extension-service
+
+# Or run manually to see output
 ~/.local/share/speech2text-extension-service/speech2text-extension-service
-
-# Check D-Bus service file
-ls ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service
 ```
 
-You can read more about the D-Bus service here: [D-Bus Service Documentation](./service/README.md).
-
-### GNOME Shell Crashes
-
-If you experience GNOME Shell crashes when using the extension, use the crash analysis script:
+### Reinstall the service after updates
 
 ```bash
-# After a crash, run the debug script
-./debug-crash.sh
+cd speech2text-extension/service
+./install-service.sh
 ```
 
-This script will analyze system logs and generate a detailed crash report. Choose option 1 (last 30 minutes) after
-experiencing a crash. The script will create a timestamped file with all relevant crash information.
-
-### Text Insertion Not Working
-
-1. **On X11**: Ensure xdotool is installed
-2. **On Wayland**: Install `wtype` for text insertion support:
-   - Fedora: `sudo dnf install wtype`
-   - Ubuntu/Debian: `sudo apt install wtype`
-   - Arch: `sudo pacman -S wtype`
-   - If wtype is not available, the extension will fall back to xdotool for XWayland windows
-3. Check if target application accepts simulated keyboard input
-4. Enable "Auto-insert on Wayland" in the extension settings (requires wtype)
+---
 
 ## Uninstallation
 
-### Gnome Extensions
-
-You should be able to uninstall the extension directly using the GNOME Extensions tool.
-
-### Manual Uninstallation
-
 ```bash
-# Remove everything (extension + service)
+# Remove extension and service
 make clean
+
+# Or remove just the service
+rm -rf ~/.local/share/speech2text-extension-service
+rm ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service
 ```
+
+---
 
 ## Privacy & Security
 
-🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or
-external servers. The extension uses OpenAI's Whisper model locally, ensuring privacy of your voice data.
+🔒 All speech recognition runs entirely on your local machine using OpenAI Whisper. No audio or text is ever sent to any external server.
 
-## Development
-
-### Building from Source
-
-```bash
-# Complete development setup (install extension + service + compile schemas)
-make setup
-
-# Check installation status
-make status
-
-# Clean installation (extension + d-bus service)
-make clean
-```
-
-## License
-
-This project is licensed under the GPLv3 - see the LICENSE file for details.
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open issues.
+Pull requests and issues are welcome. When reporting a bug please include:
 
-### Reporting Issues
+- GNOME Shell version: `gnome-shell --version`
+- Session type: `echo $XDG_SESSION_TYPE`
+- OS and version: `cat /etc/os-release`
+- Logs: `journalctl --user -n 100 --no-pager | grep speech2text`
 
-Please include:
+## License
 
-- GNOME Shell version (`gnome-shell --version`)
-- Operating system and version (`lsb_release -a`)
-- Session type (`echo $XDG_SESSION_TYPE`)
-- Extension logs (`journalctl /usr/bin/gnome-shell | grep speech2text`)
-- Service logs (`journalctl --user -u speech2text-service`)
-- **For crashes**: Run `./debug-crash.sh` and include the generated report
-- Steps to reproduce the issue
+GPLv3 — see [LICENSE](./LICENSE).
