@@ -314,15 +314,17 @@ export class RecordingController {
   }
 
   _showCopyOnlyPreviewDialog(text) {
-    // Copy-only preview: disable insert even on X11 (predictable for non-blocking mode).
     const previewDialog = new RecordingDialog(
       () => {
         previewDialog.close();
       },
-      null, // no insert callback
+      (finalText) => {
+        log.debug(`Inserting text from copy-only preview: ${finalText}`);
+        this._typeText(finalText);
+        previewDialog.close();
+      },
       null,
-      0,
-      { allowInsert: false }
+      0
     );
     previewDialog.open();
     previewDialog.showPreview(text);

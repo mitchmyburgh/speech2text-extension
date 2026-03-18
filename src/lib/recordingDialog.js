@@ -325,8 +325,6 @@ export class RecordingDialog {
 
     log.debug(`Showing preview with text: "${text}"`);
 
-    const isWayland = Meta.is_wayland_compositor();
-
     // Update header
     if (this.recordingIcon) this.recordingIcon.set_text("📝");
     if (this.recordingLabel) this.recordingLabel.set_text("Transcribed Text");
@@ -337,11 +335,7 @@ export class RecordingDialog {
     if (this.stopButton) this.stopButton.hide();
     if (this.cancelButton) this.cancelButton.hide();
     if (this.instructionLabel) {
-      this.instructionLabel.set_text(
-        isWayland
-          ? "Wayland: use Copy to paste manually"
-          : "Enter to insert at cursor  •  Escape to cancel"
-      );
+      this.instructionLabel.set_text("↵ insert  •  Esc cancel");
     }
 
     // Resize dialog
@@ -398,7 +392,7 @@ export class RecordingDialog {
       x_align: Clutter.ActorAlign.CENTER,
     });
 
-    if (!isWayland && this.allowInsert) {
+    if (this.allowInsert && this.onInsert) {
       const insertBtn = this._makeGhostButton("Insert", COLORS.SUCCESS);
       insertBtn.connect("clicked", () => {
         const finalText = textEntry.get_text();
@@ -408,10 +402,7 @@ export class RecordingDialog {
       buttonRow.add_child(insertBtn);
     }
 
-    const copyBtn = this._makeGhostButton(
-      isWayland ? "Copy" : "Copy Only",
-      COLORS.PRIMARY
-    );
+    const copyBtn = this._makeGhostButton("Copy", COLORS.PRIMARY);
     copyBtn.connect("clicked", () => {
       this._copyToClipboard(textEntry.get_text());
       this.close();
@@ -446,9 +437,14 @@ export class RecordingDialog {
         return Clutter.EVENT_STOP;
       }
       if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
-        this._copyToClipboard(textEntry.get_text());
+        const finalText = textEntry.get_text();
         this.close();
-        this.onCancel?.();
+        if (this.allowInsert && this.onInsert) {
+          this.onInsert?.(finalText);
+        } else {
+          this._copyToClipboard(finalText);
+          this.onCancel?.();
+        }
         return Clutter.EVENT_STOP;
       }
       return Clutter.EVENT_PROPAGATE;
