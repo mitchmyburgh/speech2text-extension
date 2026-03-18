@@ -149,6 +149,7 @@ export class SettingsDialog {
       style: this._trackStyle(enabled),
       reactive: true,
       can_focus: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     const knob = new St.Widget({
@@ -170,7 +171,10 @@ export class SettingsDialog {
   _trackStyle(enabled) {
     return `
       width: 40px;
+      min-width: 40px;
       height: 22px;
+      min-height: 22px;
+      max-height: 22px;
       border-radius: 11px;
       background-color: ${enabled ? ACCENT : "rgba(110, 110, 120, 0.9)"};
       border: none;
