@@ -280,31 +280,11 @@ export class RecordingController {
   }
 
   async _typeText(text) {
-    // Wait for GNOME Shell to remove the DI actor and for the Wayland compositor
-    // to return keyboard focus to the target window before sending keystrokes.
-    await new Promise(resolve =>
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => { resolve(); return false; })
-    );
-
-    // Spawn wtype directly from the extension process so it inherits
-    // GNOME Shell's Wayland environment (WAYLAND_DISPLAY, XDG_RUNTIME_DIR).
-    // The Python service process may not have these vars set.
-    const trimmed = text.trimEnd();
-    if (trimmed) {
-      try {
-        // -s 500: sleep 500ms before typing (focus settle time)
-        // -d 50:  50ms between keystrokes (avoid dropped chars)
-        Gio.Subprocess.new(
-          ["wtype", "-s", "500", "-d", "50", trimmed],
-          Gio.SubprocessFlags.NONE
-        );
-      } catch (e) {
-        log.warn("wtype failed:", e.message);
-      }
-    }
-
-    if (this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard")) {
-      St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+    const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
+    try {
+      await this.serviceManager.typeText(text, copyToClipboard);
+    } catch (e) {
+      log.warn("_typeText failed:", e?.message || String(e));
     }
   }
 

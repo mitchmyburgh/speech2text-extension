@@ -390,26 +390,19 @@ class Speech2TextService(ServiceInterface):
             return False
 
         display_server = self._detect_display_server()
+        print(f"_type_text: display_server={display_server}, WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY')}, XDG_RUNTIME_DIR={os.environ.get('XDG_RUNTIME_DIR')}")
 
         try:
             if display_server == "wayland":
-                # 500ms pre-start delay so the GNOME Shell overlay has fully
-                # closed and keyboard focus has returned to the target window,
-                # then 50ms between keystrokes to avoid dropped characters.
                 lines = text.split('\n')
-                first_chunk = True
                 for i, line in enumerate(lines):
                     if i > 0:
                         subprocess.run(["wtype", "-k", "Return"], check=True)
                     if line:
-                        if first_chunk:
-                            subprocess.run(["wtype", "-s", "500", "-d", "50", line], check=True)
-                            first_chunk = False
-                        else:
-                            subprocess.run(["wtype", "-d", "50", line], check=True)
+                        subprocess.run(["wtype", line], check=True)
             else:
                 # X11
-                subprocess.run(["xdotool", "type", "--delay", "50", text], check=True)
+                subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
             return True
         except Exception as e:
             print(f"Error typing text: {e}")
