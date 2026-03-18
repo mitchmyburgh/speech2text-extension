@@ -5,14 +5,89 @@ import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { COLORS } from "./constants.js";
-import { createStyledLabel, createVerticalBox, createHorizontalBox } from "./uiUtils.js";
-import { createCloseButton, createCenteredBox, createHeaderLayout } from "./buttonUtils.js";
+import { createStyledLabel } from "./uiUtils.js";
+import { createCloseButton } from "./buttonUtils.js";
 import {
-  cleanupModal,
   showModalDialog,
   closeModalDialog,
   setupModalEventHandlers,
 } from "./resourceUtils.js";
+
+// ─── Shared style constants ───────────────────────────────────────────────────
+
+const BG        = "rgba(24, 24, 28, 0.99)";
+const SURFACE   = "rgba(255, 255, 255, 0.05)";
+const BORDER    = "rgba(255, 255, 255, 0.08)";
+const TEXT      = "#e0e0e0";
+const MUTED     = "#666";
+const ACCENT    = COLORS.PRIMARY;   // orange, used sparingly
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+function pill(label, bg, textColor = "white") {
+  return new St.Label({
+    text: label,
+    style: `
+      background-color: ${bg};
+      color: ${textColor};
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: bold;
+    `,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+}
+
+function subtleButton(label, onClick) {
+  const base = `
+    background-color: ${SURFACE};
+    border: 1px solid ${BORDER};
+    border-radius: 8px;
+    color: ${TEXT};
+    font-size: 12px;
+    padding: 7px 14px;
+  `;
+  const hover = `
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: white;
+    font-size: 12px;
+    padding: 7px 14px;
+  `;
+  const btn = new St.Button({ label, style: base, reactive: true, can_focus: true, track_hover: true });
+  btn.connect("enter-event", () => btn.set_style(hover));
+  btn.connect("leave-event", () => btn.set_style(base));
+  if (onClick) btn.connect("clicked", onClick);
+  return btn;
+}
+
+function dangerButton(label, onClick) {
+  const base = `
+    background-color: transparent;
+    border: 1px solid rgba(255, 68, 68, 0.4);
+    border-radius: 8px;
+    color: #ff6b6b;
+    font-size: 12px;
+    padding: 7px 14px;
+  `;
+  const hover = `
+    background-color: rgba(255, 68, 68, 0.1);
+    border: 1px solid rgba(255, 68, 68, 0.6);
+    border-radius: 8px;
+    color: #ff6b6b;
+    font-size: 12px;
+    padding: 7px 14px;
+  `;
+  const btn = new St.Button({ label, style: base, reactive: true, can_focus: true, track_hover: true });
+  btn.connect("enter-event", () => btn.set_style(hover));
+  btn.connect("leave-event", () => btn.set_style(base));
+  if (onClick) btn.connect("clicked", onClick);
+  return btn;
+}
+
+// ─── SettingsDialog ───────────────────────────────────────────────────────────
 
 export class SettingsDialog {
   constructor(extension) {
@@ -20,6 +95,20 @@ export class SettingsDialog {
     this.settings = extension.settings;
     this.overlay = null;
     this.currentShortcutDisplay = null;
+
+    // toggle refs: { button, label }
+    this.clipboardToggle = null;
+    this.nonBlockingToggle = null;
+    this.skipPreviewToggle = null;
+    this.dynamicIslandToggle = null;
+    this.inlineToggle = null;
+    this.waylandToggle = null;
+
+    this.centerTimeoutId = null;
+    this.keyPressHandler = null;
+    this.clickHandler = null;
+
+    // legacy refs kept for _setupEventHandlers compat
     this.clipboardCheckbox = null;
     this.clipboardCheckboxIcon = null;
     this.skipPreviewCheckbox = null;
@@ -32,15 +121,10 @@ export class SettingsDialog {
     this.autoInsertWaylandCheckboxIcon = null;
     this.showTranscriptionInlineCheckbox = null;
     this.showTranscriptionInlineCheckboxIcon = null;
-    this.centerTimeoutId = null;
-    this.keyPressHandler = null;
-    this.clickHandler = null;
   }
 
   show() {
-    if (this.overlay) {
-      return;
-    }
+    if (this.overlay) return;
     this._createDialog();
     this._setupEventHandlers();
     this._showDialog();
@@ -49,10 +133,7 @@ export class SettingsDialog {
   close() {
     closeModalDialog(
       this.overlay,
-      {
-        keyPressHandler: this.keyPressHandler,
-        clickHandler: this.clickHandler,
-      },
+      { keyPressHandler: this.keyPressHandler, clickHandler: this.clickHandler },
       this.centerTimeoutId
     );
     this.centerTimeoutId = null;
@@ -61,253 +142,213 @@ export class SettingsDialog {
     this.clickHandler = null;
   }
 
-  // ─── Toggle helpers ───────────────────────────────────────────────────────
-
-  _toggleBtnStyle(enabled) {
-    return `
-      width: 50px;
-      height: 24px;
-      border-radius: 12px;
-      background-color: ${enabled ? COLORS.PRIMARY : "rgba(50, 50, 55, 1)"};
-      border: 1.5px solid ${enabled ? COLORS.PRIMARY : "rgba(80, 80, 88, 1)"};
-      transition-duration: 150ms;
-    `;
-  }
-
-  _toggleLblStyle(enabled) {
-    return `
-      font-size: 9px;
-      font-weight: bold;
-      color: ${enabled ? "white" : "#666"};
-      letter-spacing: 0.5px;
-    `;
-  }
+  // ─── Toggle ───────────────────────────────────────────────────────────────
 
   _makeToggle(enabled) {
-    const button = new St.Button({
-      style: this._toggleBtnStyle(enabled),
+    const track = new St.Button({
+      style: this._trackStyle(enabled),
       reactive: true,
       can_focus: true,
+      width: 40,
+      height: 22,
     });
-    const label = new St.Label({
-      text: enabled ? "ON" : "OFF",
-      style: this._toggleLblStyle(enabled),
-      y_align: Clutter.ActorAlign.CENTER,
-      x_align: Clutter.ActorAlign.CENTER,
+
+    const knob = new St.Widget({
+      style: `
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background-color: white;
+        margin: 3px;
+        margin-left: ${enabled ? "21px" : "3px"};
+      `,
     });
-    button.add_child(label);
-    return { button, label };
+    track.add_child(knob);
+
+    return { button: track, label: knob };   // "label" = knob for _updateToggle compat
   }
 
-  _updateToggle(button, label, enabled) {
-    button.set_style(this._toggleBtnStyle(enabled));
-    label.set_style(this._toggleLblStyle(enabled));
-    label.set_text(enabled ? "ON" : "OFF");
-  }
-
-  // ─── Ghost button helper ──────────────────────────────────────────────────
-
-  _makeGhostButton(text, color, hoverAlpha = "0.12") {
-    const base = `
-      color: ${color};
-      border: 1.5px solid ${color};
-      background-color: transparent;
-      border-radius: 7px;
-      padding: 7px 16px;
-      font-size: 13px;
-      font-weight: bold;
+  _trackStyle(enabled) {
+    return `
+      width: 40px;
+      height: 22px;
+      border-radius: 11px;
+      background-color: ${enabled ? ACCENT : "rgba(80, 80, 88, 0.8)"};
+      border: none;
+      padding: 0;
     `;
-    const hover = `
-      color: ${color};
-      border: 1.5px solid ${color};
-      background-color: ${color}${Math.round(parseFloat(hoverAlpha) * 255).toString(16).padStart(2, "0")};
-      border-radius: 7px;
-      padding: 7px 16px;
-      font-size: 13px;
-      font-weight: bold;
-    `;
-    const button = new St.Button({
-      label: text,
-      style: base,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-    button.connect("enter-event", () => button.set_style(hover));
-    button.connect("leave-event", () => button.set_style(base));
-    return button;
   }
 
-  // ─── Dialog construction ──────────────────────────────────────────────────
+  _updateToggle(button, knob, enabled) {
+    button.set_style(this._trackStyle(enabled));
+    knob.set_style(`
+      width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      background-color: white;
+      margin: 3px;
+      margin-left: ${enabled ? "21px" : "3px"};
+    `);
+  }
+
+  // ─── Dialog layout ────────────────────────────────────────────────────────
 
   _createDialog() {
     this.overlay = new St.Widget({
-      style: `background-color: rgba(0, 0, 0, 0.65);`,
+      style: "background-color: rgba(0, 0, 0, 0.6);",
       reactive: true,
       can_focus: true,
       track_hover: true,
     });
 
     this.settingsWindow = new St.BoxLayout({
-      style_class: "settings-window",
       vertical: true,
       style: `
-        background-color: rgba(18, 18, 22, 0.98);
-        border-radius: 16px;
-        padding: 28px 30px 24px;
-        min-width: 520px;
-        max-width: 580px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: ${BG};
+        border-radius: 14px;
+        padding: 0px;
+        min-width: 480px;
+        max-width: 540px;
         spacing: 0;
       `,
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    this.settingsWindow.add_child(this._buildHeaderSection());
-    this.settingsWindow.add_child(this._makeDivider("16px", "0px"));
-    this.settingsWindow.add_child(this._buildShortcutSection());
-    this.settingsWindow.add_child(this._makeDivider("16px", "0px"));
-    this.settingsWindow.add_child(this._buildDurationSection());
-    this.settingsWindow.add_child(this._makeDivider("16px", "0px"));
-    this.settingsWindow.add_child(this._buildOptionsSection());
+    this.settingsWindow.add_child(this._buildHeader());
+    this.settingsWindow.add_child(this._buildBody());
 
     this.overlay.add_child(this.settingsWindow);
   }
 
-  _makeDivider(marginTop = "12px", marginBottom = "0px") {
-    return new St.Widget({
+  _buildHeader() {
+    const header = new St.BoxLayout({
+      vertical: false,
       style: `
-        background-color: rgba(255, 255, 255, 0.06);
-        height: 1px;
-        margin-top: ${marginTop};
-        margin-bottom: ${marginBottom};
+        padding: 18px 20px 16px;
+        spacing: 10px;
+        border-bottom: 1px solid ${BORDER};
       `,
+      x_expand: true,
+    });
+
+    const title = new St.Label({
+      text: "Settings",
+      style: `font-size: 16px; font-weight: bold; color: white;`,
+      y_align: Clutter.ActorAlign.CENTER,
+      x_expand: true,
+    });
+
+    this.closeButton = createCloseButton(28);
+
+    header.add_child(title);
+    header.add_child(this.closeButton);
+    return header;
+  }
+
+  _buildBody() {
+    const body = new St.BoxLayout({
+      vertical: true,
+      style: "padding: 0px; spacing: 0;",
+      x_expand: true,
+    });
+
+    body.add_child(this._buildShortcutSection());
+    body.add_child(this._buildDivider());
+    body.add_child(this._buildDurationSection());
+    body.add_child(this._buildDivider());
+    body.add_child(this._buildOptionsSection());
+
+    return body;
+  }
+
+  _buildDivider() {
+    return new St.Widget({
+      style: `background-color: ${BORDER}; height: 1px;`,
       x_expand: true,
     });
   }
 
-  _makeSectionLabel(text) {
+  _sectionLabel(text) {
     return new St.Label({
       text: text.toUpperCase(),
       style: `
         font-size: 10px;
         font-weight: bold;
-        color: #666;
+        color: ${MUTED};
         letter-spacing: 0.8px;
         margin-bottom: 10px;
-        margin-top: 16px;
       `,
     });
   }
 
-  // ─── Header ──────────────────────────────────────────────────────────────
-
-  _buildHeaderSection() {
-    const titleContainer = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 12px;",
-      x_align: Clutter.ActorAlign.START,
-      y_align: Clutter.ActorAlign.CENTER,
-      x_expand: true,
-    });
-
-    const iconBadge = new St.Widget({
-      style: `
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background-color: rgba(255, 140, 0, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      `,
-    });
-    const iconLabel = new St.Label({
-      text: "🎤",
-      style: "font-size: 18px;",
-      y_align: Clutter.ActorAlign.CENTER,
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-    iconBadge.add_child(iconLabel);
-
-    const titleLabel = new St.Label({
-      text: "Speech2Text Settings",
-      style: `
-        font-size: 17px;
-        font-weight: bold;
-        color: white;
-      `,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    titleContainer.add_child(iconBadge);
-    titleContainer.add_child(titleLabel);
-
-    this.closeButton = createCloseButton(30);
-    return createHeaderLayout(titleContainer, this.closeButton);
-  }
-
-  // ─── Keyboard shortcut ────────────────────────────────────────────────────
+  // ─── Shortcut section ─────────────────────────────────────────────────────
 
   _buildShortcutSection() {
-    const section = new St.BoxLayout({ vertical: true, style: "" });
+    const section = new St.BoxLayout({
+      vertical: true,
+      style: "padding: 18px 20px 16px; spacing: 10px;",
+    });
 
-    section.add_child(this._makeSectionLabel("Keyboard Shortcut"));
+    section.add_child(this._sectionLabel("Keyboard Shortcut"));
 
     // Current shortcut display
     const shortcuts = this.settings.get_strv("toggle-recording");
-    const currentShortcut = shortcuts.length > 0 ? shortcuts[0] : null;
+    const current = shortcuts.length > 0 ? shortcuts[0] : "No shortcut set";
     this.currentShortcutDisplay = new St.Label({
-      text: currentShortcut || "No shortcut set",
+      text: current,
       style: `
         font-size: 13px;
-        color: ${COLORS.PRIMARY};
-        background-color: rgba(255, 140, 0, 0.08);
-        padding: 9px 14px;
+        font-family: monospace;
+        color: ${TEXT};
+        background-color: ${SURFACE};
+        border: 1px solid ${BORDER};
         border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        margin-bottom: 12px;
+        padding: 9px 12px;
       `,
       x_expand: true,
-      x_align: Clutter.ActorAlign.FILL,
     });
-    section.add_child(this.currentShortcutDisplay);
 
-    // Button row
-    const buttonRow = new St.BoxLayout({
+    // Buttons
+    const btnRow = new St.BoxLayout({
       vertical: false,
       style: "spacing: 8px;",
     });
 
-    this.changeShortcutButton = this._makeGhostButton("Change Shortcut", COLORS.PRIMARY);
-    this.resetToDefaultButton = this._makeGhostButton("Reset to Default", "#888888");
-    this.removeShortcutButton = this._makeGhostButton("Remove", COLORS.DANGER);
+    this.changeShortcutButton = subtleButton("Change");
+    this.resetToDefaultButton = subtleButton("Reset Default");
+    this.removeShortcutButton = dangerButton("Remove");
 
-    buttonRow.add_child(this.changeShortcutButton);
-    buttonRow.add_child(this.resetToDefaultButton);
-    buttonRow.add_child(this.removeShortcutButton);
+    btnRow.add_child(this.changeShortcutButton);
+    btnRow.add_child(this.resetToDefaultButton);
+    btnRow.add_child(this.removeShortcutButton);
 
-    section.add_child(buttonRow);
+    section.add_child(this.currentShortcutDisplay);
+    section.add_child(btnRow);
     return section;
   }
 
-  // ─── Recording duration ───────────────────────────────────────────────────
+  // ─── Duration section ─────────────────────────────────────────────────────
 
   _buildDurationSection() {
-    const section = new St.BoxLayout({ vertical: true, style: "" });
-    section.add_child(this._makeSectionLabel("Recording Duration"));
+    const section = new St.BoxLayout({
+      vertical: true,
+      style: "padding: 18px 20px 16px; spacing: 10px;",
+    });
+
+    section.add_child(this._sectionLabel("Recording Duration"));
 
     const row = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 0px;",
-      x_align: Clutter.ActorAlign.FILL,
       x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     const hint = new St.Label({
       text: "Max recording length",
-      style: "font-size: 13px; color: #bbb;",
-      y_align: Clutter.ActorAlign.CENTER,
+      style: `font-size: 13px; color: ${TEXT};`,
       x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     const controls = new St.BoxLayout({
@@ -316,25 +357,25 @@ export class SettingsDialog {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    this.decreaseButton = this._makeStepButton("−");
+    this.decreaseButton = this._stepBtn("−");
     const currentDuration = this.settings.get_int("recording-duration");
     this.durationValueLabel = new St.Label({
       text: `${currentDuration}s`,
       style: `
-        font-size: 14px;
+        font-size: 13px;
         font-weight: bold;
-        color: ${COLORS.PRIMARY};
-        background-color: rgba(255, 140, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: ${TEXT};
+        background-color: ${SURFACE};
+        border: 1px solid ${BORDER};
         border-radius: 7px;
         padding: 6px 14px;
-        min-width: 52px;
+        min-width: 42px;
         text-align: center;
       `,
       y_align: Clutter.ActorAlign.CENTER,
       x_align: Clutter.ActorAlign.CENTER,
     });
-    this.increaseButton = this._makeStepButton("+");
+    this.increaseButton = this._stepBtn("+");
 
     controls.add_child(this.decreaseButton);
     controls.add_child(this.durationValueLabel);
@@ -346,115 +387,72 @@ export class SettingsDialog {
     return section;
   }
 
-  _makeStepButton(symbol) {
+  _stepBtn(symbol) {
     const base = `
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background-color: rgba(255, 255, 255, 0.06);
-      border: 1.5px solid rgba(120, 120, 128, 0.5);
-      color: #ccc;
-      font-size: 16px;
-      font-weight: bold;
-      text-align: center;
+      width: 28px; height: 28px; border-radius: 7px;
+      background-color: ${SURFACE};
+      border: 1px solid ${BORDER};
+      color: ${TEXT}; font-size: 15px; font-weight: bold;
     `;
     const hover = `
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background-color: rgba(255, 140, 0, 0.15);
-      border: 1.5px solid rgba(255, 140, 0, 0.5);
-      color: ${COLORS.PRIMARY};
-      font-size: 16px;
-      font-weight: bold;
-      text-align: center;
+      width: 28px; height: 28px; border-radius: 7px;
+      background-color: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white; font-size: 15px; font-weight: bold;
     `;
-    const btn = new St.Button({
-      label: symbol,
-      style: base,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    const btn = new St.Button({ label: symbol, style: base, reactive: true, can_focus: true, track_hover: true });
     btn.connect("enter-event", () => btn.set_style(hover));
     btn.connect("leave-event", () => btn.set_style(base));
     return btn;
   }
 
-  // ─── Options ──────────────────────────────────────────────────────────────
+  // ─── Options section ──────────────────────────────────────────────────────
 
   _buildOptionsSection() {
-    const section = new St.BoxLayout({ vertical: true, style: "" });
-    section.add_child(this._makeSectionLabel("Options"));
+    const section = new St.BoxLayout({
+      vertical: true,
+      style: "padding: 18px 20px 20px; spacing: 0;",
+    });
+
+    section.add_child(this._sectionLabel("Options"));
 
     const rows = [];
 
-    // copy-to-clipboard
-    {
-      const enabled = this.settings.get_boolean("copy-to-clipboard");
-      const { button, label } = this._makeToggle(enabled);
-      this.clipboardCheckbox = button;
-      this.clipboardCheckboxIcon = label;
-      rows.push(this._makeOptionRow("Copy to clipboard automatically", button));
-    }
+    const addRow = (label, settingKey, ref) => {
+      const enabled = this.settings.get_boolean(settingKey);
+      const { button, label: knob } = this._makeToggle(enabled);
+      this[ref + "Checkbox"] = button;
+      this[ref + "CheckboxIcon"] = knob;
+      rows.push(this._optionRow(label, button));
+    };
 
-    // non-blocking transcription
-    {
-      const enabled = this.settings.get_boolean("non-blocking-transcription");
-      const { button, label } = this._makeToggle(enabled);
-      this.nonBlockingTranscriptionCheckbox = button;
-      this.nonBlockingTranscriptionCheckboxIcon = label;
-      rows.push(this._makeOptionRow("Non-blocking transcription", button));
-    }
+    addRow("Copy to clipboard automatically", "copy-to-clipboard", "clipboard");
+    addRow("Non-blocking transcription", "non-blocking-transcription", "nonBlockingTranscription");
+    addRow("Use Dynamic Island style UI", "use-dynamic-island", "dynamicIsland");
+    addRow("Show transcription inline", "show-transcription-inline", "showTranscriptionInline");
 
-    // dynamic island
-    {
-      const enabled = this.settings.get_boolean("use-dynamic-island");
-      const { button, label } = this._makeToggle(enabled);
-      this.dynamicIslandCheckbox = button;
-      this.dynamicIslandCheckboxIcon = label;
-      rows.push(this._makeOptionRow("Use Dynamic Island style UI", button));
-    }
-
-    // show transcription inline
-    {
-      const enabled = this.settings.get_boolean("show-transcription-inline");
-      const { button, label } = this._makeToggle(enabled);
-      this.showTranscriptionInlineCheckbox = button;
-      this.showTranscriptionInlineCheckboxIcon = label;
-      rows.push(this._makeOptionRow("Show transcription inline (Dynamic Island)", button));
-    }
-
-    // X11 auto-insert
     if (!Meta.is_wayland_compositor()) {
-      const enabled = this.settings.get_boolean("skip-preview-x11");
-      const { button, label } = this._makeToggle(enabled);
-      this.skipPreviewCheckbox = button;
-      this.skipPreviewCheckboxIcon = label;
-      rows.push(this._makeOptionRow("Auto-insert at cursor (X11)", button));
+      addRow("Auto-insert at cursor (X11)", "skip-preview-x11", "skipPreview");
     } else {
       this.skipPreviewCheckbox = null;
       this.skipPreviewCheckboxIcon = null;
-    }
 
-    // Wayland auto-insert
-    if (Meta.is_wayland_compositor()) {
       const enabled = this.settings.get_boolean("auto-insert-wayland");
-      const { button, label } = this._makeToggle(enabled);
+      const { button, label: knob } = this._makeToggle(enabled);
       this.autoInsertWaylandCheckbox = button;
-      this.autoInsertWaylandCheckboxIcon = label;
+      this.autoInsertWaylandCheckboxIcon = knob;
       const sublabel = new St.Label({
-        text: "Install wtype package for best results",
-        style: "font-size: 11px; color: #555; margin-top: 1px;",
+        text: "Requires wtype",
+        style: `font-size: 11px; color: #444; margin-top: 1px;`,
       });
-      rows.push(this._makeOptionRow("Auto-insert on Wayland (requires wtype)", button, sublabel));
+      rows.push(this._optionRow("Auto-insert on Wayland", button, sublabel));
     }
 
     rows.forEach((row, i) => {
       section.add_child(row);
       if (i < rows.length - 1) {
         section.add_child(new St.Widget({
-          style: "background-color: rgba(255,255,255,0.04); height: 1px;",
+          style: `background-color: ${BORDER}; height: 1px; margin: 2px 0;`,
           x_expand: true,
         }));
       }
@@ -463,12 +461,12 @@ export class SettingsDialog {
     return section;
   }
 
-  _makeOptionRow(text, toggleButton, sublabel = null) {
+  _optionRow(labelText, toggle, sublabel = null) {
     const row = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 0px; padding: 10px 0;",
       x_expand: true,
       y_align: Clutter.ActorAlign.CENTER,
+      style: "padding: 9px 0;",
     });
 
     const labelBox = new St.BoxLayout({
@@ -477,18 +475,16 @@ export class SettingsDialog {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    const label = new St.Label({
-      text,
-      style: "font-size: 13px; color: #ccc;",
+    const lbl = new St.Label({
+      text: labelText,
+      style: `font-size: 13px; color: ${TEXT};`,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    labelBox.add_child(label);
-    if (sublabel) {
-      labelBox.add_child(sublabel);
-    }
+    labelBox.add_child(lbl);
+    if (sublabel) labelBox.add_child(sublabel);
 
     row.add_child(labelBox);
-    row.add_child(toggleButton);
+    row.add_child(toggle);
     return row;
   }
 
@@ -497,7 +493,6 @@ export class SettingsDialog {
   _setupEventHandlers() {
     this.closeButton.connect("clicked", () => this.close());
 
-    // Shortcut buttons
     this.changeShortcutButton.connect("clicked", () => {
       this.extension.uiManager.captureNewShortcut((newShortcut) => {
         if (newShortcut) {
@@ -509,9 +504,9 @@ export class SettingsDialog {
     });
 
     this.resetToDefaultButton.connect("clicked", () => {
-      const defaultShortcut = "<Super><Alt>r";
-      this.settings.set_strv("toggle-recording", [defaultShortcut]);
-      this.currentShortcutDisplay.set_text(defaultShortcut);
+      const def = "<Super><Alt>r";
+      this.settings.set_strv("toggle-recording", [def]);
+      this.currentShortcutDisplay.set_text(def);
       this.extension.keybindingManager?.setupKeybinding();
     });
 
@@ -521,116 +516,77 @@ export class SettingsDialog {
       this.currentShortcutDisplay.set_text("No shortcut set");
     });
 
-    // Duration controls
     this.decreaseButton.connect("clicked", () => {
-      let current = this.settings.get_int("recording-duration");
-      let newValue = Math.max(10, current - 10);
-      this.settings.set_int("recording-duration", newValue);
-      this.durationValueLabel.set_text(`${newValue}s`);
+      const v = Math.max(10, this.settings.get_int("recording-duration") - 10);
+      this.settings.set_int("recording-duration", v);
+      this.durationValueLabel.set_text(`${v}s`);
     });
 
     this.increaseButton.connect("clicked", () => {
-      let current = this.settings.get_int("recording-duration");
-      let newValue = Math.min(300, current + 10);
-      this.settings.set_int("recording-duration", newValue);
-      this.durationValueLabel.set_text(`${newValue}s`);
+      const v = Math.min(300, this.settings.get_int("recording-duration") + 10);
+      this.settings.set_int("recording-duration", v);
+      this.durationValueLabel.set_text(`${v}s`);
     });
 
-    // Copy to clipboard toggle
-    this.clipboardCheckbox.connect("clicked", () => {
-      const newState = !this.settings.get_boolean("copy-to-clipboard");
-      this.settings.set_boolean("copy-to-clipboard", newState);
-      this._updateToggle(this.clipboardCheckbox, this.clipboardCheckboxIcon, newState);
-    });
+    this._wireToggle("copy-to-clipboard", "clipboardCheckbox", "clipboardCheckboxIcon");
 
-    // Mutual-exclusion helpers for non-blocking ↔ skip-preview
-    const _setSkipPreviewUi = (enabled) => {
-      if (!this.skipPreviewCheckbox || !this.skipPreviewCheckboxIcon) return;
-      this._updateToggle(this.skipPreviewCheckbox, this.skipPreviewCheckboxIcon, enabled);
-    };
-
-    const _setNonBlockingUi = (enabled) => {
-      if (!this.nonBlockingTranscriptionCheckbox || !this.nonBlockingTranscriptionCheckboxIcon) return;
-      this._updateToggle(this.nonBlockingTranscriptionCheckbox, this.nonBlockingTranscriptionCheckboxIcon, enabled);
-    };
-
-    const _setSkipPreviewInteractive = (enabled) => {
-      if (!this.skipPreviewCheckbox) return;
-      this.skipPreviewCheckbox.reactive = enabled;
-      this.skipPreviewCheckbox.can_focus = enabled;
-      this.skipPreviewCheckbox.set_opacity(enabled ? 255 : 100);
-    };
-
-    // Non-blocking transcription toggle
+    // Non-blocking ↔ skip-preview mutual exclusion
     if (this.nonBlockingTranscriptionCheckbox) {
       this.nonBlockingTranscriptionCheckbox.connect("clicked", () => {
         const newState = !this.settings.get_boolean("non-blocking-transcription");
         this.settings.set_boolean("non-blocking-transcription", newState);
         if (newState && this.settings.get_boolean("skip-preview-x11")) {
           this.settings.set_boolean("skip-preview-x11", false);
-          _setSkipPreviewUi(false);
+          this._updateToggle(this.skipPreviewCheckbox, this.skipPreviewCheckboxIcon, false);
         }
-        _setSkipPreviewInteractive(!newState);
-        _setNonBlockingUi(newState);
+        if (this.skipPreviewCheckbox) {
+          this.skipPreviewCheckbox.reactive = !newState;
+          this.skipPreviewCheckbox.set_opacity(!newState ? 255 : 80);
+        }
+        this._updateToggle(this.nonBlockingTranscriptionCheckbox, this.nonBlockingTranscriptionCheckboxIcon, newState);
       });
 
-      const nonBlockingNow = this.settings.get_boolean("non-blocking-transcription");
-      _setSkipPreviewInteractive(!nonBlockingNow);
+      const nbNow = this.settings.get_boolean("non-blocking-transcription");
+      if (this.skipPreviewCheckbox) {
+        this.skipPreviewCheckbox.reactive = !nbNow;
+        this.skipPreviewCheckbox.set_opacity(!nbNow ? 255 : 80);
+      }
     }
 
-    // Skip-preview toggle (X11 only)
     if (this.skipPreviewCheckbox) {
       this.skipPreviewCheckbox.connect("clicked", () => {
         if (this.settings.get_boolean("non-blocking-transcription")) return;
         const newState = !this.settings.get_boolean("skip-preview-x11");
         this.settings.set_boolean("skip-preview-x11", newState);
-        if (newState && this.settings.get_boolean("non-blocking-transcription")) {
-          this.settings.set_boolean("non-blocking-transcription", false);
-          _setNonBlockingUi(false);
-        }
-        _setSkipPreviewUi(newState);
+        this._updateToggle(this.skipPreviewCheckbox, this.skipPreviewCheckboxIcon, newState);
       });
     }
 
-    // Dynamic Island toggle
-    if (this.dynamicIslandCheckbox) {
-      this.dynamicIslandCheckbox.connect("clicked", () => {
-        const newState = !this.settings.get_boolean("use-dynamic-island");
-        this.settings.set_boolean("use-dynamic-island", newState);
-        this._updateToggle(this.dynamicIslandCheckbox, this.dynamicIslandCheckboxIcon, newState);
-      });
-    }
-
-    // Show transcription inline toggle
-    if (this.showTranscriptionInlineCheckbox) {
-      this.showTranscriptionInlineCheckbox.connect("clicked", () => {
-        const newState = !this.settings.get_boolean("show-transcription-inline");
-        this.settings.set_boolean("show-transcription-inline", newState);
-        this._updateToggle(this.showTranscriptionInlineCheckbox, this.showTranscriptionInlineCheckboxIcon, newState);
-      });
-    }
-
-    // Auto-insert Wayland toggle
-    if (this.autoInsertWaylandCheckbox) {
-      this.autoInsertWaylandCheckbox.connect("clicked", () => {
-        const newState = !this.settings.get_boolean("auto-insert-wayland");
-        this.settings.set_boolean("auto-insert-wayland", newState);
-        this._updateToggle(this.autoInsertWaylandCheckbox, this.autoInsertWaylandCheckboxIcon, newState);
-      });
-    }
+    this._wireToggle("use-dynamic-island", "dynamicIslandCheckbox", "dynamicIslandCheckboxIcon");
+    this._wireToggle("show-transcription-inline", "showTranscriptionInlineCheckbox", "showTranscriptionInlineCheckboxIcon");
+    this._wireToggle("auto-insert-wayland", "autoInsertWaylandCheckbox", "autoInsertWaylandCheckboxIcon");
 
     const handlers = setupModalEventHandlers(this.overlay, () => this.close());
     this.keyPressHandler = handlers.keyPressHandler;
     this.clickHandler = handlers.clickHandler;
   }
 
+  _wireToggle(settingKey, btnRef, knobRef) {
+    const btn = this[btnRef];
+    const knob = this[knobRef];
+    if (!btn) return;
+    btn.connect("clicked", () => {
+      const newState = !this.settings.get_boolean(settingKey);
+      this.settings.set_boolean(settingKey, newState);
+      this._updateToggle(btn, knob, newState);
+    });
+  }
+
   _showDialog() {
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
+    if (this.centerTimeoutId) GLib.Source.remove(this.centerTimeoutId);
     this.centerTimeoutId = showModalDialog(this.overlay, this.settingsWindow, {
-      fallbackWidth: 550,
-      fallbackHeight: 520,
+      fallbackWidth: 520,
+      fallbackHeight: 500,
       onComplete: () => (this.centerTimeoutId = null),
     });
   }
