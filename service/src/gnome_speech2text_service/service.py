@@ -354,20 +354,33 @@ class Speech2TextService(ServiceInterface):
         if not text:
             return False
 
+        # Strip trailing whitespace to avoid phantom spaces at end of typed text.
+        text = text.rstrip()
+        if not text:
+            return False
+
         display_server = self._detect_display_server()
 
         try:
             if display_server == "wayland":
                 # Try wtype first (native Wayland)
                 try:
-                    # wtype doesn't support newlines directly, so we split and handle them
+                    # wtype doesn't support newlines directly, so we split and handle them.
+                    # -s 200: wait 200ms before starting so the GNOME Shell dialog has fully
+                    #         closed and keyboard focus has returned to the target window.
+                    # -d 20:  20ms between keystrokes so fast-typing apps don't drop/repeat chars.
                     lines = text.split('\n')
+                    first_line = True
                     for i, line in enumerate(lines):
                         if i > 0:
-                            # Insert newline between lines
                             subprocess.run(["wtype", "-k", "Return"], check=True)
                         if line:
-                            subprocess.run(["wtype", line], check=True)
+                            if first_line:
+                                # Only apply the pre-start delay on the very first chunk.
+                                subprocess.run(["wtype", "-s", "200", "-d", "20", line], check=True)
+                                first_line = False
+                            else:
+                                subprocess.run(["wtype", "-d", "20", line], check=True)
                     return True
                 except (FileNotFoundError, subprocess.CalledProcessError) as e:
                     print(f"wtype failed, falling back to xdotool (XWayland): {e}")

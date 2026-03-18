@@ -195,7 +195,7 @@ export class RecordingStateManager {
       if (isRecording) {
         this.icon.set_style(`color: ${COLORS.PRIMARY};`);
       } else {
-        this.icon.set_style("");
+        this.icon.set_style("color: white;");
       }
     }
   }

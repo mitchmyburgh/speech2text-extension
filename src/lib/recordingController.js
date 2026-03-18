@@ -82,19 +82,19 @@ export class RecordingController {
         this.recordingStateManager.cancelRecording();
         this.recordingStateManager.setRecordingDialog(null);
       },
-      (text) => {
-        // Insert callback
-        log.debug(`Inserting text from Dynamic Island: ${text}`);
-        this._typeText(text);
-        this.recordingStateManager.setRecordingDialog(null);
-      },
       async () => {
-        // Stop callback
+        // Stop callback (onStop)
         log.debug("Stop recording button clicked in Dynamic Island");
         const stopped = await this.recordingStateManager.stopRecording();
         if (stopped) {
           this._beginTranscriptionUi();
         }
+      },
+      (text) => {
+        // Insert callback (onInsert)
+        log.debug(`Inserting text from Dynamic Island: ${text}`);
+        this._typeText(text);
+        this.recordingStateManager.setRecordingDialog(null);
       },
       {
         maxDuration: settings.get_int("recording-duration"),
@@ -266,12 +266,12 @@ export class RecordingController {
           () => {
             dynamicIsland.close();
           },
+          null,
           (finalText) => {
             log.debug(`Inserting text from preview: ${finalText}`);
             this._typeText(finalText);
             dynamicIsland.close();
           },
-          null,
           {
             maxDuration: 0,
             showTranscription: true,
