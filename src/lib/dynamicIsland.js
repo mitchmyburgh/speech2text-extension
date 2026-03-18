@@ -468,6 +468,25 @@ export class DynamicIsland {
     ct.set_single_line_mode(false);
     ct.set_activatable(false);
 
+    // Header row: icon + title + close button
+    const closeBtn = new St.Button({
+      label: "✕",
+      style: `
+        color: #666;
+        background: transparent;
+        border: none;
+        font-size: 13px;
+        padding: 0 2px;
+      `,
+      reactive: true,
+      can_focus: true,
+    });
+    closeBtn.connect("clicked", () => {
+      this.close();
+      if (this.onCancel) this.onCancel();
+    });
+    header.add_child(closeBtn);
+
     // Hint line
     const hint = new St.Label({
       text: "↵ insert  •  Esc cancel",
@@ -490,7 +509,9 @@ export class DynamicIsland {
   }
 
   _setupPreviewKeyboardHandling(textEntry) {
-    this.container.connect("key-press-event", (actor, event) => {
+    // The St.Entry's ClutterText holds focus while editing — attach handler there
+    const ct = textEntry.get_clutter_text();
+    ct.connect("key-press-event", (actor, event) => {
       const keyval = event.get_key_symbol();
       if (keyval === Clutter.KEY_Escape) {
         this.close();
@@ -501,6 +522,16 @@ export class DynamicIsland {
         const finalText = textEntry.get_text();
         this.close();
         if (this.onInsert) this.onInsert(finalText);
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
+    // Also handle on container in case entry doesn't have focus yet
+    this.container.connect("key-press-event", (actor, event) => {
+      const keyval = event.get_key_symbol();
+      if (keyval === Clutter.KEY_Escape) {
+        this.close();
+        if (this.onCancel) this.onCancel();
         return Clutter.EVENT_STOP;
       }
       return Clutter.EVENT_PROPAGATE;
