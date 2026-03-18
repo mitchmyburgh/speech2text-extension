@@ -561,9 +561,17 @@ export class DynamicIsland {
         if (this.onCancel) this.onCancel();
         return Clutter.EVENT_STOP;
       }
+      if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
+        const finalText = textEntry.get_text();
+        this.close();
+        if (this.onInsert) this.onInsert(finalText);
+        return Clutter.EVENT_STOP;
+      }
       return Clutter.EVENT_PROPAGATE;
     });
-    this.container.grab_key_focus();
+    // Focus the text entry so the ct key-press handler fires and the user
+    // can edit the transcription immediately.
+    textEntry.grab_key_focus();
   }
 
   showError(message) {
