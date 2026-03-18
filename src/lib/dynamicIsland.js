@@ -277,7 +277,19 @@ export class DynamicIsland {
 
   _positionAtTop() {
     const monitor = Main.layoutManager.primaryMonitor;
-    this.container.set_position(monitor.x + 40, monitor.y + 12);
+
+    // Place just below the GNOME top panel
+    const panelHeight = Main.layoutManager.panelBox
+      ? Main.layoutManager.panelBox.height
+      : 32;
+    const y = monitor.y + panelHeight + 8;
+
+    // Centre horizontally based on allocated width, falling back to known preview width
+    const [allocWidth] = this.container.get_size();
+    const containerWidth = allocWidth > 0 ? allocWidth : monitor.width - 80;
+    const x = monitor.x + Math.round((monitor.width - containerWidth) / 2);
+
+    this.container.set_position(x, y);
   }
 
   _startPulsing() {
