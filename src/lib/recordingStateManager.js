@@ -191,13 +191,7 @@ export class RecordingStateManager {
   }
 
   updateIcon(isRecording) {
-    if (this.icon) {
-      if (isRecording) {
-        this.icon.set_style(`color: ${COLORS.PRIMARY};`);
-      } else {
-        this.icon.set_style("color: white;");
-      }
-    }
+    // Icon colour is baked into the SVG (white); no CSS styling needed.
   }
 
   handleTranscriptionReady(recordingId, text, settings) {
