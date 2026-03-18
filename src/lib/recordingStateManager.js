@@ -227,17 +227,17 @@ export class RecordingStateManager {
       return { action: "nonBlockingClipboard", text };
     }
 
-    // Check if we should skip preview and auto-insert (X11 only)
+    // Check if we should skip preview and auto-insert
     const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
+    const autoInsertWayland = settings.get_boolean("auto-insert-wayland");
     const isWayland = Meta.is_wayland_compositor();
 
     log.debug(`=== SETTINGS CHECK ===`);
     log.debug(`skipPreviewX11 (auto-insert X11): ${skipPreviewX11}`);
+    log.debug(`autoInsertWayland: ${autoInsertWayland}`);
     log.debug(`isWayland: ${isWayland}`);
 
-    // On Wayland, always show preview (auto-insert via wtype is not supported).
-    // On X11, respect the skip-preview setting.
-    const shouldAutoInsert = isWayland ? false : skipPreviewX11;
+    const shouldAutoInsert = isWayland ? autoInsertWayland : skipPreviewX11;
     
     log.debug(`Should auto-insert: ${shouldAutoInsert}`);
     log.debug(`Should show preview: ${!shouldAutoInsert}`);

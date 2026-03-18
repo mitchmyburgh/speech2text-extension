@@ -381,16 +381,7 @@ class Speech2TextService(ServiceInterface):
             return False
 
     def _type_text(self, text):
-        """Insert text into the focused field.
-
-        Wayland: copy text to clipboard with wl-copy, wait for GNOME Shell
-        to return focus to the target window, then paste with Ctrl+V via
-        wtype.  This is far more reliable than wtype character-by-character
-        because it is a single atomic clipboard paste rather than N individual
-        key-injection calls, and it works regardless of text length or content.
-
-        X11: use xdotool type as before.
-        """
+        """Type text using wtype (Wayland) or xdotool (X11)."""
         if not text:
             return False
 
@@ -402,14 +393,20 @@ class Speech2TextService(ServiceInterface):
 
         try:
             if display_server == "wayland":
-                env = self._get_wayland_env()
-                # Load the clipboard (wl-copy reads from stdin)
-                subprocess.run(["wl-copy"], input=text, text=True, check=True, env=env)
-                # Wait for GNOME Shell overlay to fully close and the Wayland
-                # compositor to return keyboard focus to the target window.
-                time.sleep(0.5)
-                # Paste with Ctrl+V
-                subprocess.run(["wtype", "-M", "ctrl", "-k", "v"], check=True, env=env)
+                # 500ms pre-start delay so the GNOME Shell overlay has fully
+                # closed and keyboard focus has returned to the target window,
+                # then 50ms between keystrokes to avoid dropped characters.
+                lines = text.split('\n')
+                first_chunk = True
+                for i, line in enumerate(lines):
+                    if i > 0:
+                        subprocess.run(["wtype", "-k", "Return"], check=True)
+                    if line:
+                        if first_chunk:
+                            subprocess.run(["wtype", "-s", "500", "-d", "50", line], check=True)
+                            first_chunk = False
+                        else:
+                            subprocess.run(["wtype", "-d", "50", line], check=True)
             else:
                 # X11
                 subprocess.run(["xdotool", "type", "--delay", "50", text], check=True)
@@ -846,12 +843,13 @@ class Speech2TextService(ServiceInterface):
             return False
 
     @method()
-    async def TypeText(self, text: "s", copy_to_clipboard: "b") -> "b":
+    def TypeText(self, text: "s", copy_to_clipboard: "b") -> "b":
         """Type provided text directly."""
         try:
-            # Run _type_text in a thread-pool executor so the asyncio event
-            # loop is not blocked during the wtype sleep + keystroke delay.
-            success = await self._loop.run_in_executor(None, self._type_text, text)
+            success = True
+
+            if not self._type_text(text):
+                success = False
 
             if copy_to_clipboard:
                 if not self._copy_to_clipboard(text):
