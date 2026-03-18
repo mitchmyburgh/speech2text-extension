@@ -15,7 +15,7 @@ export class RecordingController {
   initialize() {
     // Initialize recording state manager
     this.recordingStateManager = new RecordingStateManager(
-      this.uiManager.icon,
+      this.uiManager.iconWidget,
       this.serviceManager.dbusManager
     );
   }
