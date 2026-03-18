@@ -149,8 +149,6 @@ export class SettingsDialog {
       style: this._trackStyle(enabled),
       reactive: true,
       can_focus: true,
-      width: 40,
-      height: 22,
     });
 
     const knob = new St.Widget({
@@ -159,11 +157,12 @@ export class SettingsDialog {
         height: 16px;
         border-radius: 8px;
         background-color: white;
-        margin: 3px;
-        margin-left: ${enabled ? "21px" : "3px"};
       `,
+      reactive: false,
     });
     track.add_child(knob);
+    // Use set_position for reliable placement — margin-left inside St.Button is ignored
+    knob.set_position(enabled ? 21 : 3, 3);
 
     return { button: track, label: knob };   // "label" = knob for _updateToggle compat
   }
@@ -173,7 +172,7 @@ export class SettingsDialog {
       width: 40px;
       height: 22px;
       border-radius: 11px;
-      background-color: ${enabled ? ACCENT : "rgba(80, 80, 88, 0.8)"};
+      background-color: ${enabled ? ACCENT : "rgba(110, 110, 120, 0.9)"};
       border: none;
       padding: 0;
     `;
@@ -181,14 +180,7 @@ export class SettingsDialog {
 
   _updateToggle(button, knob, enabled) {
     button.set_style(this._trackStyle(enabled));
-    knob.set_style(`
-      width: 16px;
-      height: 16px;
-      border-radius: 8px;
-      background-color: white;
-      margin: 3px;
-      margin-left: ${enabled ? "21px" : "3px"};
-    `);
+    knob.set_position(enabled ? 21 : 3, 3);
   }
 
   // ─── Dialog layout ────────────────────────────────────────────────────────
