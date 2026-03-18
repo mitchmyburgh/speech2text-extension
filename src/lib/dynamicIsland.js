@@ -415,57 +415,47 @@ export class DynamicIsland {
 
     this.innerBox.remove_all_children();
     this.innerBox.vertical = true;
-    this.innerBox.style = "spacing: 14px; padding: 20px 24px;";
+    this.innerBox.style = "spacing: 10px; padding: 16px 20px;";
 
     this.container.set_style(`
       ${BASE_STYLE}
       border-radius: 16px;
-      min-width: 380px;
-      max-width: 560px;
+      min-width: 420px;
+      max-width: 620px;
     `);
 
-    // Header
+    // Compact header row
     const header = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 10px;",
-      x_align: Clutter.ActorAlign.CENTER,
+      style: "spacing: 8px;",
+      x_align: Clutter.ActorAlign.START,
     });
 
-    const iconBadge = new St.Widget({
-      style: `
-        width: 32px; height: 32px; border-radius: 9px;
-        background-color: rgba(255, 140, 0, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      `,
-    });
     const iconLbl = new St.Label({
       text: "📝",
-      style: "font-size: 16px;",
+      style: "font-size: 14px;",
       y_align: Clutter.ActorAlign.CENTER,
-      x_align: Clutter.ActorAlign.CENTER,
     });
-    iconBadge.add_child(iconLbl);
 
     const titleLbl = new St.Label({
-      text: "Transcribed Text",
-      style: "font-size: 15px; font-weight: bold; color: white;",
+      text: "TRANSCRIPTION",
+      style: "font-size: 10px; font-weight: bold; color: #666; letter-spacing: 0.8px;",
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    header.add_child(iconBadge);
+    header.add_child(iconLbl);
     header.add_child(titleLbl);
 
-    // Text entry
-    const isWayland = Meta.is_wayland_compositor();
+    // Editable text entry
     const textEntry = new St.Entry({
       text,
       style: `
-        background-color: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 10px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
         color: #e8e8e8;
         font-size: 14px;
-        padding: 12px 14px;
+        padding: 10px 12px;
         caret-color: ${COLORS.PRIMARY};
       `,
       can_focus: true,
@@ -478,55 +468,16 @@ export class DynamicIsland {
     ct.set_single_line_mode(false);
     ct.set_activatable(false);
 
-    // Hint
+    // Hint line
     const hint = new St.Label({
-      text: isWayland
-        ? "Wayland: use Copy to paste manually"
-        : "Enter to insert • Escape to cancel",
-      style: "font-size: 11px; color: #555; text-align: center;",
+      text: "↵ insert  •  Esc cancel",
+      style: "font-size: 11px; color: #444; text-align: center;",
       x_align: Clutter.ActorAlign.CENTER,
     });
-
-    // Buttons
-    const buttonRow = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 8px;",
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-
-    const showInsert = !isWayland || this.options.autoInsertOnWayland;
-    if (showInsert) {
-      const insertBtn = this._makeGhostButton("Insert", COLORS.SUCCESS);
-      insertBtn.connect("clicked", () => {
-        const finalText = textEntry.get_text();
-        this.close();
-        if (this.onInsert) this.onInsert(finalText);
-      });
-      buttonRow.add_child(insertBtn);
-    }
-
-    const copyBtn = this._makeGhostButton(
-      isWayland ? "Copy" : "Copy Only",
-      COLORS.PRIMARY
-    );
-    copyBtn.connect("clicked", () => {
-      this._copyToClipboard(textEntry.get_text());
-      this.close();
-    });
-
-    const cancelBtn = this._makeGhostButton("Cancel", "#666");
-    cancelBtn.connect("clicked", () => {
-      this.close();
-      if (this.onCancel) this.onCancel();
-    });
-
-    buttonRow.add_child(copyBtn);
-    buttonRow.add_child(cancelBtn);
 
     this.innerBox.add_child(header);
     this.innerBox.add_child(textEntry);
     this.innerBox.add_child(hint);
-    this.innerBox.add_child(buttonRow);
 
     this._positionAtTop();
 
@@ -539,7 +490,6 @@ export class DynamicIsland {
   }
 
   _setupPreviewKeyboardHandling(textEntry) {
-    const isWayland = Meta.is_wayland_compositor();
     this.container.connect("key-press-event", (actor, event) => {
       const keyval = event.get_key_symbol();
       if (keyval === Clutter.KEY_Escape) {
@@ -547,7 +497,7 @@ export class DynamicIsland {
         if (this.onCancel) this.onCancel();
         return Clutter.EVENT_STOP;
       }
-      if ((keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) && !isWayland) {
+      if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
         const finalText = textEntry.get_text();
         this.close();
         if (this.onInsert) this.onInsert(finalText);

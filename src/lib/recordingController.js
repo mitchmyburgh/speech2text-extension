@@ -270,12 +270,11 @@ export class RecordingController {
           (finalText) => {
             log.debug(`Inserting text from preview: ${finalText}`);
             this._typeText(finalText);
-            dynamicIsland.close();
           },
           {
             maxDuration: 0,
             showTranscription: true,
-            autoInsertOnWayland: isWayland && autoInsertWayland,
+            autoInsertOnWayland: true,
           }
         );
 
