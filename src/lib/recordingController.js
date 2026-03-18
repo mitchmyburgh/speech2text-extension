@@ -1,3 +1,4 @@
+import GLib from "gi://GLib";
 import St from "gi://St";
 import Meta from "gi://Meta";
 import { RecordingStateManager } from "./recordingStateManager.js";
@@ -278,6 +279,11 @@ export class RecordingController {
   }
 
   async _typeText(text) {
+    // Wait for GNOME Shell to remove the DI actor and for the Wayland compositor
+    // to return keyboard focus to the target window before sending the paste.
+    await new Promise(resolve =>
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => { resolve(); return false; })
+    );
     await this.serviceManager.typeText(
       text,
       this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard")

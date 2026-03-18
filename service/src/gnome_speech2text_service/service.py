@@ -377,7 +377,7 @@ class Speech2TextService(ServiceInterface):
                     )
 
             # Step 2: wait for focus to return to the target window after the dialog closes
-            time.sleep(0.3)
+            time.sleep(0.4)
 
             # Step 3: simulate Ctrl+V to paste as one block
             if display_server == "wayland":
