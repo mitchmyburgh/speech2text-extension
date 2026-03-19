@@ -383,10 +383,19 @@ class Speech2TextService(ServiceInterface):
         try:
             if display_server == "wayland":
                 env = self._get_wayland_env()
-                subprocess.run(["wl-copy"], input=text, text=True, check=True, env=env)
+                # wl-copy stays alive as clipboard owner (must serve paste requests),
+                # so use Popen — subprocess.run would block forever.
+                proc = subprocess.Popen(
+                    ["wl-copy"], stdin=subprocess.PIPE, text=True, env=env
+                )
+                proc.stdin.write(text)
+                proc.stdin.close()
+                time.sleep(0.05)  # Let wl-copy register as clipboard owner
                 subprocess.run(["ydotool", "key", "ctrl+v"], check=True)
+                time.sleep(0.1)   # Let paste complete before releasing clipboard
+                proc.terminate()
             else:
-                # X11: set clipboard then paste
+                # X11: xclip daemonizes so subprocess.run returns immediately
                 try:
                     subprocess.run(
                         ["xclip", "-selection", "clipboard"],
