@@ -215,20 +215,8 @@ class Speech2TextService(ServiceInterface):
         clipboard_available = False
         session_type = os.environ.get("XDG_SESSION_TYPE", "")
 
-        # Check for typing tools
-        if session_type == "wayland":
-            # On Wayland, ydotool works via /dev/uinput (GNOME/Mutter compatible).
-            # wtype is NOT compatible with GNOME — it requires a wlroots compositor.
-            try:
-                subprocess.run(["which", "ydotool"], capture_output=True, check=True)
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                missing.append("ydotool (for text insertion on Wayland)")
-        else:
-            # On X11, xdotool is required
-            try:
-                subprocess.run(["xdotool", "--version"], capture_output=True, check=True)
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                missing.append("xdotool")
+        # Text insertion is handled by the GNOME Shell extension via Clutter virtual
+        # keyboard — no external typing tool is required.
 
         if session_type == "wayland":
             # On Wayland, only wl-copy works

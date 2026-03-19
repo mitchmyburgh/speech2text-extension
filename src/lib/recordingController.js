@@ -180,7 +180,7 @@ export class RecordingController {
       this.uiManager.extensionCore.settings
     );
 
-    log.warn(`RecordingController: Transcription result - action: ${result?.action}`);
+    log.debug(`RecordingController: Transcription result - action: ${result?.action}`);
 
     if (result && result.action === "nonBlockingClipboard") {
       // Non-blocking mode is clipboard-only: do NOT auto-insert or show a modal preview.
@@ -279,11 +279,9 @@ export class RecordingController {
   }
 
   async _typeText(text) {
-    log.warn("_typeText: called, text length =", text.length);
     try {
       // Set clipboard via GNOME Shell's own API
       St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
-      log.warn("_typeText: clipboard set");
 
       // Wait for dialog to close and focus to return to the target window
       await new Promise(resolve =>
@@ -293,19 +291,14 @@ export class RecordingController {
         })
       );
 
-      const focusedWindow = global.display.get_focus_window();
-      log.warn("_typeText: focused window after delay =", focusedWindow?.get_title?.() ?? "none");
-
       // Simulate Ctrl+V using GNOME Shell's virtual keyboard (compositor-level, no external tools)
       const seat = Clutter.get_default_backend().get_default_seat();
       const vk = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
-      log.warn("_typeText: virtual device created, sending Ctrl+V");
       const t = GLib.get_monotonic_time();
       vk.notify_keyval(t,        0xFFE3, Clutter.KeyState.PRESSED);  // Control_L down
       vk.notify_keyval(t + 1000, 0x76,   Clutter.KeyState.PRESSED);  // v down
       vk.notify_keyval(t + 2000, 0x76,   Clutter.KeyState.RELEASED); // v up
       vk.notify_keyval(t + 3000, 0xFFE3, Clutter.KeyState.RELEASED); // Control_L up
-      log.warn("_typeText: done");
     } catch (e) {
       log.warn("_typeText failed:", e?.message || String(e));
     }
