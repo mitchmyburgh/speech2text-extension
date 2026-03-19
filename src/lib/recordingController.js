@@ -180,9 +180,7 @@ export class RecordingController {
       this.uiManager.extensionCore.settings
     );
 
-    log.debug(
-      `RecordingController: Transcription result - action: ${result?.action}`
-    );
+    log.warn(`RecordingController: Transcription result - action: ${result?.action}`);
 
     if (result && result.action === "nonBlockingClipboard") {
       // Non-blocking mode is clipboard-only: do NOT auto-insert or show a modal preview.
