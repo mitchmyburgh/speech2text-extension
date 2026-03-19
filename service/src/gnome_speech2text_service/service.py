@@ -379,36 +379,66 @@ class Speech2TextService(ServiceInterface):
             return False
 
         display_server = self._detect_display_server()
+        syslog.syslog(syslog.LOG_INFO, f"_type_text: display_server={display_server}, text_len={len(text)}")
 
         try:
             if display_server == "wayland":
                 env = self._get_wayland_env()
+                syslog.syslog(syslog.LOG_INFO, f"_type_text: WAYLAND_DISPLAY={env.get('WAYLAND_DISPLAY')}, XDG_RUNTIME_DIR={env.get('XDG_RUNTIME_DIR')}")
+
                 # wl-copy stays alive as clipboard owner (must serve paste requests),
                 # so use Popen — subprocess.run would block forever.
+                syslog.syslog(syslog.LOG_INFO, "_type_text: starting wl-copy via Popen")
                 proc = subprocess.Popen(
-                    ["wl-copy"], stdin=subprocess.PIPE, text=True, env=env
+                    ["wl-copy"], stdin=subprocess.PIPE, text=True, env=env,
+                    stderr=subprocess.PIPE
                 )
                 proc.stdin.write(text)
                 proc.stdin.close()
+                syslog.syslog(syslog.LOG_INFO, f"_type_text: wl-copy pid={proc.pid}, sleeping 50ms")
                 time.sleep(0.05)  # Let wl-copy register as clipboard owner
-                subprocess.run(["ydotool", "key", "ctrl+v"], check=True)
+
+                poll = proc.poll()
+                syslog.syslog(syslog.LOG_INFO, f"_type_text: wl-copy poll()={poll} (None=still running)")
+                if poll is not None:
+                    err = proc.stderr.read()
+                    syslog.syslog(syslog.LOG_ERR, f"_type_text: wl-copy exited early rc={poll} stderr={err}")
+
+                syslog.syslog(syslog.LOG_INFO, "_type_text: running ydotool key ctrl+v")
+                result = subprocess.run(
+                    ["ydotool", "key", "ctrl+v"],
+                    capture_output=True, text=True
+                )
+                syslog.syslog(syslog.LOG_INFO, f"_type_text: ydotool rc={result.returncode} stdout={result.stdout!r} stderr={result.stderr!r}")
+
                 time.sleep(0.1)   # Let paste complete before releasing clipboard
                 proc.terminate()
+                syslog.syslog(syslog.LOG_INFO, "_type_text: wl-copy terminated")
             else:
                 # X11: xclip daemonizes so subprocess.run returns immediately
+                syslog.syslog(syslog.LOG_INFO, "_type_text: X11 path, setting clipboard")
                 try:
-                    subprocess.run(
+                    result = subprocess.run(
                         ["xclip", "-selection", "clipboard"],
-                        input=text, text=True, check=True
+                        input=text, text=True, capture_output=True
                     )
+                    syslog.syslog(syslog.LOG_INFO, f"_type_text: xclip rc={result.returncode} stderr={result.stderr!r}")
+                    if result.returncode != 0:
+                        raise subprocess.CalledProcessError(result.returncode, "xclip")
                 except (FileNotFoundError, subprocess.CalledProcessError):
-                    subprocess.run(
+                    result = subprocess.run(
                         ["xsel", "--clipboard", "--input"],
-                        input=text, text=True, check=True
+                        input=text, text=True, capture_output=True
                     )
-                subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"], check=True)
+                    syslog.syslog(syslog.LOG_INFO, f"_type_text: xsel rc={result.returncode} stderr={result.stderr!r}")
+                result = subprocess.run(
+                    ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                    capture_output=True, text=True
+                )
+                syslog.syslog(syslog.LOG_INFO, f"_type_text: xdotool key rc={result.returncode} stderr={result.stderr!r}")
             return True
         except Exception as e:
+            syslog.syslog(syslog.LOG_ERR, f"_type_text: exception: {e}")
             print(f"Error typing text: {e}")
             return False
 
