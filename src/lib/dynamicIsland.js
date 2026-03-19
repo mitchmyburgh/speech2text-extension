@@ -277,15 +277,32 @@ export class DynamicIsland {
 
   _positionAtTop() {
     const monitor = Main.layoutManager.primaryMonitor;
-
-    // Main.panel.height is reliable; panelBox.height can be 0 before first allocation
     const panelHeight = Main.panel ? Main.panel.height : 32;
-    const y = monitor.y + panelHeight + 8;
+    const minY = monitor.y + panelHeight + 8;
 
-    // Centre horizontally based on allocated width, falling back to container style width
-    const [allocWidth] = this.container.get_size();
-    const containerWidth = allocWidth > 0 ? allocWidth : monitor.width - 80;
-    const x = monitor.x + Math.round((monitor.width - containerWidth) / 2);
+    const [allocWidth, allocHeight] = this.container.get_size();
+    const containerWidth = allocWidth > 0 ? allocWidth : 280;
+    const containerHeight = allocHeight > 0 ? allocHeight : 50;
+
+    let x, y;
+
+    if (this._anchorX !== undefined && this._anchorY !== undefined) {
+      // Position above the cursor anchor captured at open() time
+      x = this._anchorX - Math.round(containerWidth / 2);
+      y = this._anchorY - containerHeight - 12;
+
+      // If it would overlap the panel, flip below the anchor instead
+      if (y < minY) y = this._anchorY + 20;
+
+      // Clamp to screen bounds
+      x = Math.max(monitor.x + 8, Math.min(x, monitor.x + monitor.width - containerWidth - 8));
+      y = Math.max(minY, Math.min(y, monitor.y + monitor.height - containerHeight - 8));
+    } else {
+      // Fallback: top-centre
+      const containerWidthFallback = allocWidth > 0 ? allocWidth : monitor.width - 80;
+      x = monitor.x + Math.round((monitor.width - containerWidthFallback) / 2);
+      y = minY;
+    }
 
     this.container.set_position(x, y);
   }
@@ -527,6 +544,11 @@ export class DynamicIsland {
 
   open() {
     log.debug("Opening Dynamic Island");
+    // Capture mouse position so the DI appears near the active input
+    const [mx, my] = global.get_pointer();
+    this._anchorX = mx;
+    this._anchorY = my;
+
     Main.layoutManager.addTopChrome(this.container, {
       affectsStruts: false,
       trackFullscreen: false,
