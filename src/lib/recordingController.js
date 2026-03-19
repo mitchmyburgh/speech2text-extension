@@ -94,10 +94,10 @@ export class RecordingController {
         }
       },
       (text) => {
-        // Copy callback — preview mode uses clipboard, not wtype
-        log.debug(`Copying text from Dynamic Island preview: ${text}`);
-        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+        // Insert callback — type the text into the focused window
+        log.debug(`Inserting text from Dynamic Island preview: ${text}`);
         this.recordingStateManager.setRecordingDialog(null);
+        this._typeText(text);
       },
       {
         maxDuration: settings.get_int("recording-duration"),
