@@ -386,12 +386,12 @@ class Speech2TextService(ServiceInterface):
                 # which requires a wlroots compositor.
                 # --next-delay 12: 12ms between keystrokes to avoid dropped chars.
                 subprocess.run(
-                    ["ydotool", "type", "--next-delay", "12", "--", text],
+                    ["ydotool", "type", "--next-delay", "1", "--", text],
                     check=True
                 )
             else:
                 # X11
-                subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
+                subprocess.run(["xdotool", "type", "--delay", "0", text], check=True)
             return True
         except Exception as e:
             print(f"Error typing text: {e}")
