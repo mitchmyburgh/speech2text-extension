@@ -2,6 +2,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
 import Meta from "gi://Meta";
+import Clutter from "gi://Clutter";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
 import { DynamicIsland } from "./dynamicIsland.js";
@@ -280,9 +281,26 @@ export class RecordingController {
   }
 
   async _typeText(text) {
-    const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
     try {
-      await this.serviceManager.typeText(text, copyToClipboard);
+      // Set clipboard via GNOME Shell's own API
+      St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+
+      // Brief delay for any dialog to finish closing and focus to return to the target window
+      await new Promise(resolve =>
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+          resolve();
+          return GLib.SOURCE_REMOVE;
+        })
+      );
+
+      // Simulate Ctrl+V using GNOME Shell's virtual keyboard (compositor-level, no external tools)
+      const seat = Clutter.get_default_backend().get_default_seat();
+      const vk = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+      const t = GLib.get_monotonic_time();
+      vk.notify_keyval(t,        0xFFE3, Clutter.KeyState.PRESSED);  // Control_L down
+      vk.notify_keyval(t + 1000, 0x76,   Clutter.KeyState.PRESSED);  // v down
+      vk.notify_keyval(t + 2000, 0x76,   Clutter.KeyState.RELEASED); // v up
+      vk.notify_keyval(t + 3000, 0xFFE3, Clutter.KeyState.RELEASED); // Control_L up
     } catch (e) {
       log.warn("_typeText failed:", e?.message || String(e));
     }
