@@ -370,7 +370,7 @@ class Speech2TextService(ServiceInterface):
             return False
 
     def _type_text(self, text):
-        """Type text using wtype (Wayland) or xdotool (X11)."""
+        """Type text via clipboard paste (set clipboard, send Ctrl+V) for instant insertion."""
         if not text:
             return False
 
@@ -382,16 +382,22 @@ class Speech2TextService(ServiceInterface):
 
         try:
             if display_server == "wayland":
-                # ydotool uses /dev/uinput — works on GNOME/Mutter unlike wtype
-                # which requires a wlroots compositor.
-                # --next-delay 12: 12ms between keystrokes to avoid dropped chars.
-                subprocess.run(
-                    ["ydotool", "type", "--next-delay", "1", "--", text],
-                    check=True
-                )
+                env = self._get_wayland_env()
+                subprocess.run(["wl-copy"], input=text, text=True, check=True, env=env)
+                subprocess.run(["ydotool", "key", "ctrl+v"], check=True)
             else:
-                # X11
-                subprocess.run(["xdotool", "type", "--delay", "0", text], check=True)
+                # X11: set clipboard then paste
+                try:
+                    subprocess.run(
+                        ["xclip", "-selection", "clipboard"],
+                        input=text, text=True, check=True
+                    )
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    subprocess.run(
+                        ["xsel", "--clipboard", "--input"],
+                        input=text, text=True, check=True
+                    )
+                subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+v"], check=True)
             return True
         except Exception as e:
             print(f"Error typing text: {e}")
