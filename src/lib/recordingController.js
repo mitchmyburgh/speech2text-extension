@@ -280,8 +280,17 @@ export class RecordingController {
 
   async _typeText(text) {
     try {
-      // Set clipboard via GNOME Shell's own API
-      St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+      const clipboard = St.Clipboard.get_default();
+
+      // Save whatever is currently on the clipboard so we can restore it after pasting
+      const previousClipboardText = await new Promise(resolve =>
+        clipboard.get_text(St.ClipboardType.CLIPBOARD, (_cb, savedText) =>
+          resolve(savedText ?? "")
+        )
+      );
+
+      // Set clipboard to the transcribed text
+      clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
 
       // Wait for dialog to close and focus to return to the target window
       await new Promise(resolve =>
@@ -299,6 +308,15 @@ export class RecordingController {
       vk.notify_keyval(t + 1000, 0x76,   Clutter.KeyState.PRESSED);  // v down
       vk.notify_keyval(t + 2000, 0x76,   Clutter.KeyState.RELEASED); // v up
       vk.notify_keyval(t + 3000, 0xFFE3, Clutter.KeyState.RELEASED); // Control_L up
+
+      // Wait for the paste to be processed, then restore the original clipboard contents
+      await new Promise(resolve =>
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+          resolve();
+          return GLib.SOURCE_REMOVE;
+        })
+      );
+      clipboard.set_text(St.ClipboardType.CLIPBOARD, previousClipboardText);
     } catch (e) {
       log.warn("_typeText failed:", e?.message || String(e));
     }
