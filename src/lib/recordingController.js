@@ -280,27 +280,15 @@ export class RecordingController {
 
   async _typeText(text) {
     try {
-      // Try typing via D-Bus service first (ydotool/xdotool — no clipboard needed).
-      // ydotool types via uinput at kernel level so no focus delay is needed.
-      let typed = false;
-      try {
-        const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
-        typed = await this.serviceManager.typeText(text, copyToClipboard);
-      } catch (e) {
-        log.debug("D-Bus typeText unavailable, falling back to Ctrl+V:", e?.message);
-      }
+      // Wait for dialog to close and focus to return to the target window
+      await new Promise(resolve =>
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+          resolve();
+          return GLib.SOURCE_REMOVE;
+        })
+      );
 
-      if (!typed) {
-        // Fallback: clipboard paste via compositor virtual keyboard.
-        // Needs a short delay for focus to return to the target window.
-        await new Promise(resolve =>
-          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-            resolve();
-            return GLib.SOURCE_REMOVE;
-          })
-        );
-        await this._typeTextViaClipboard(text);
-      }
+      await this._typeTextViaClipboard(text);
     } catch (e) {
       log.warn("_typeText failed:", e?.message || String(e));
     }
