@@ -280,15 +280,8 @@ export class RecordingController {
 
   async _typeText(text) {
     try {
-      // Wait for dialog to close and focus to return to the target window
-      await new Promise(resolve =>
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-          resolve();
-          return GLib.SOURCE_REMOVE;
-        })
-      );
-
-      // Try typing via D-Bus service first (ydotool/xdotool — no clipboard needed)
+      // Try typing via D-Bus service first (ydotool/xdotool — no clipboard needed).
+      // ydotool types via uinput at kernel level so no focus delay is needed.
       let typed = false;
       try {
         const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
@@ -298,7 +291,14 @@ export class RecordingController {
       }
 
       if (!typed) {
-        // Fallback: clipboard paste via compositor virtual keyboard
+        // Fallback: clipboard paste via compositor virtual keyboard.
+        // Needs a short delay for focus to return to the target window.
+        await new Promise(resolve =>
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+          })
+        );
         await this._typeTextViaClipboard(text);
       }
     } catch (e) {
@@ -338,7 +338,7 @@ export class RecordingController {
 
     // Wait for paste to be processed, then restore original clipboard
     await new Promise(resolve =>
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
         resolve();
         return GLib.SOURCE_REMOVE;
       })
