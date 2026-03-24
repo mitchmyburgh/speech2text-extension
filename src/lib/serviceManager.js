@@ -107,7 +107,7 @@ export class ServiceManager {
 
     log.debug(`Typing text via D-Bus: "${text}"`);
 
-    await this.dbusManager.typeText(text.trim(), copyToClipboard);
+    return await this.dbusManager.typeText(text.trim(), copyToClipboard);
   }
 
   destroy() {
