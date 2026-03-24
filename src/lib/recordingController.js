@@ -2,6 +2,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
 import Meta from "gi://Meta";
+import Clutter from "gi://Clutter";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
 import { DynamicIsland } from "./dynamicIsland.js";
@@ -287,12 +288,62 @@ export class RecordingController {
         })
       );
 
-      // Type text via D-Bus service (uses ydotool on Wayland, xdotool on X11)
-      const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
-      await this.serviceManager.typeText(text, copyToClipboard);
+      // Try typing via D-Bus service first (ydotool/xdotool — no clipboard needed)
+      let typed = false;
+      try {
+        const copyToClipboard = this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard");
+        typed = await this.serviceManager.typeText(text, copyToClipboard);
+      } catch (e) {
+        log.debug("D-Bus typeText unavailable, falling back to Ctrl+V:", e?.message);
+      }
+
+      if (!typed) {
+        // Fallback: clipboard paste via compositor virtual keyboard
+        await this._typeTextViaClipboard(text);
+      }
     } catch (e) {
       log.warn("_typeText failed:", e?.message || String(e));
     }
+  }
+
+  async _typeTextViaClipboard(text) {
+    const clipboard = St.Clipboard.get_default();
+
+    // Save current clipboard contents
+    const previousClipboardText = await new Promise(resolve =>
+      clipboard.get_text(St.ClipboardType.CLIPBOARD, (_cb, savedText) =>
+        resolve(savedText ?? "")
+      )
+    );
+
+    // Set clipboard to the transcribed text
+    clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+
+    // Small delay to ensure clipboard is set
+    await new Promise(resolve =>
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+        resolve();
+        return GLib.SOURCE_REMOVE;
+      })
+    );
+
+    // Simulate Ctrl+V using GNOME Shell's virtual keyboard
+    const seat = Clutter.get_default_backend().get_default_seat();
+    const vk = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+    const t = GLib.get_monotonic_time();
+    vk.notify_keyval(t,        0xFFE3, Clutter.KeyState.PRESSED);  // Control_L down
+    vk.notify_keyval(t + 1000, 0x76,   Clutter.KeyState.PRESSED);  // v down
+    vk.notify_keyval(t + 2000, 0x76,   Clutter.KeyState.RELEASED); // v up
+    vk.notify_keyval(t + 3000, 0xFFE3, Clutter.KeyState.RELEASED); // Control_L up
+
+    // Wait for paste to be processed, then restore original clipboard
+    await new Promise(resolve =>
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+        resolve();
+        return GLib.SOURCE_REMOVE;
+      })
+    );
+    clipboard.set_text(St.ClipboardType.CLIPBOARD, previousClipboardText);
   }
 
   _beginTranscriptionUi() {
